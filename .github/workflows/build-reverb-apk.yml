@@ -42,6 +42,13 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Patch Maven mirrors for CI
+        # 上游把阿里云镜像写死在 android/build.gradle 里，CI 上偶发 502 会让 Gradle
+        # 直接禁用该仓库、导致依赖全部解析失败，这里在 CI 里去掉镜像走官方源。
+        run: |
+          sed -i '/maven.aliyun.com/d' android/build.gradle
+          sed -n '1,22p' android/build.gradle
+
       - name: Generate signing keystore
         run: |
           keytool -genkeypair -v \
