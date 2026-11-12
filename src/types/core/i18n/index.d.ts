@@ -513,6 +513,7 @@ export interface ILanguageData {
     "panel.reverb.tip": string; // 提示
     "panel.reverb.unsupported": string; // 设备不支持
     "panel.reverb.status.env": string; // 参数化混响已生效
+    "panel.reverb.status.noControl": string; // 系统未接管
     "panel.reverb.status.preset": string; // 预设混响
     "panel.reverb.failed": string; // 不可用原因
     "panel.reverb.preset.none": string; // 原声

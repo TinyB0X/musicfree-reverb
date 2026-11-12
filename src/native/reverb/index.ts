@@ -36,6 +36,8 @@ export interface INativeReverbStatus {
     envAvailable: boolean;
     /** 系统是否存在预设混响效果器 */
     presetAvailable: boolean;
+    /** 效果器是否被音频框架真正接管（false 时通常听不出变化） */
+    hasControl: boolean;
 }
 
 export interface INativeReverb extends NativeModule {

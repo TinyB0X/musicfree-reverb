@@ -422,6 +422,7 @@
     "panel.reverb.tip": "混响会改变音色，佩戴耳机效果更明显",
     "panel.reverb.unsupported": "当前设备不支持混响效果",
     "panel.reverb.status.env": "参数化混响已生效",
+    "panel.reverb.status.noControl": "效果器已挂载，但系统未接管（多为蓝牙输出或机型限制）",
     "panel.reverb.status.preset": "预设混响（该机型不支持参数化混响）",
     "panel.reverb.failed": "不可用：{reason}",
     "panel.reverb.preset.none": "原声",

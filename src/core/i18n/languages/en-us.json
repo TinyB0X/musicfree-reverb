@@ -422,6 +422,7 @@
     "panel.reverb.tip": "Reverb changes the tone color. Headphones make it more obvious.",
     "panel.reverb.unsupported": "Reverb is not supported on this device",
     "panel.reverb.status.env": "Parametric reverb is active",
+    "panel.reverb.status.noControl": "Effect mounted, but the system is not applying it (often Bluetooth output or vendor limits)",
     "panel.reverb.status.preset": "Preset reverb (parametric reverb unsupported on this device)",
     "panel.reverb.failed": "Unavailable: {reason}",
     "panel.reverb.preset.none": "Original",

@@ -158,9 +158,11 @@ export default function ReverbPanel() {
                                 style={styles.unsupported}
                                 fontSize="description"
                                 fontColor="textSecondary">
-                                {status.effectKind === "environmental"
-                                    ? i18n.t("panel.reverb.status.env")
-                                    : i18n.t("panel.reverb.status.preset")}
+                                {!status.hasControl
+                                    ? i18n.t("panel.reverb.status.noControl")
+                                    : status.effectKind === "environmental"
+                                        ? i18n.t("panel.reverb.status.env")
+                                        : i18n.t("panel.reverb.status.preset")}
                             </ThemeText>
                         ) : null}
                         {enabled && !status?.supported && status?.gaveUp ? (

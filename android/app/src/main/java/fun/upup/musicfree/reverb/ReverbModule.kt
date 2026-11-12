@@ -67,6 +67,9 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     /** 缓存设备上是否存在对应类型的系统效果器 */
     private var deviceEffects: Pair<Boolean, Boolean>? = null
 
+    /** 优先尝试的效果器类型（上一次未被系统接管就会切换） */
+    private var preferredKind = "environmental"
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             binding = false
@@ -171,6 +174,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         status.putBoolean("gaveUp", gaveUp)
         status.putBoolean("envAvailable", effects.first)
         status.putBoolean("presetAvailable", effects.second)
+        status.putBoolean("hasControl", effect?.hasControl() ?: false)
         return status
     }
 
@@ -267,6 +271,12 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             retryCount = 0
             gaveUp = false
             lastError = null
+            // 部分机型 API 能创建效果器，但音频框架并不接管（尤其蓝牙输出），
+            // 记录 hasControl 并切换优先类型，让下一次调用再试另一种效果器。
+            if (!created.hasControl()) {
+                preferredKind = if (effectKind == "environmental") "preset" else "environmental"
+                lastError = "效果器未被系统接管"
+            }
         } catch (t: Throwable) {
             lastError = "启用效果失败: " + (t.message ?: "")
             Log.w(TAG, "应用混响参数失败", t)
@@ -281,23 +291,26 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
      */
     private fun createEffect(sessionId: Int, params: ReverbParams): AudioEffect? {
         val errors = mutableListOf<String>()
-
-        try {
-            val env = EnvironmentalReverb(0, sessionId)
-            effectKind = "environmental"
-            return env
-        } catch (t: Throwable) {
-            errors.add("EnvironmentalReverb: " + (t.message ?: t.javaClass.simpleName))
-            Log.w(TAG, "创建 EnvironmentalReverb 失败, session=$sessionId", t)
+        val order = if (preferredKind == "preset") {
+            listOf("preset", "environmental")
+        } else {
+            listOf("environmental", "preset")
         }
 
-        try {
-            val preset = PresetReverb(0, sessionId)
-            effectKind = "preset"
-            return preset
-        } catch (t: Throwable) {
-            errors.add("PresetReverb: " + (t.message ?: t.javaClass.simpleName))
-            Log.w(TAG, "创建 PresetReverb 失败, session=$sessionId", t)
+        for (kind in order) {
+            try {
+                val created: AudioEffect = if (kind == "environmental") {
+                    EnvironmentalReverb(0, sessionId)
+                } else {
+                    PresetReverb(0, sessionId)
+                }
+                effectKind = kind
+                return created
+            } catch (t: Throwable) {
+                val name = if (kind == "environmental") "EnvironmentalReverb" else "PresetReverb"
+                errors.add(name + ": " + (t.message ?: t.javaClass.simpleName))
+                Log.w(TAG, "创建 " + name + " 失败, session=$sessionId", t)
+            }
         }
 
         effectKind = null

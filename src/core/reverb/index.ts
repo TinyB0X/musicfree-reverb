@@ -22,23 +22,25 @@ export interface IReverbPreset {
     params: IReverbParams;
 }
 
-/** 湿声最小电平（听感上等同关闭） */
-const WET_MIN_LEVEL = -9000;
+/** 强度 0% 时各电平压到多低（mB），保证听感接近「关闭」但不至于完全没声 */
+const WET_FLOOR_LEVEL = -2000;
+const ROOM_FLOOR_LEVEL = -1200;
+const REFLECTION_FLOOR_LEVEL = -2500;
 
 const presets: IReverbPreset[] = [
     {
         id: "studio",
         i18nKey: "panel.reverb.preset.studio",
         params: {
-            roomLevel: -900,
+            roomLevel: -150,
             roomHFLevel: -600,
-            decayTime: 260,
-            decayHFRatio: 780,
-            reflectionsLevel: -1100,
+            decayTime: 200,
+            decayHFRatio: 700,
+            reflectionsLevel: -600,
             reflectionsDelay: 8,
-            reverbLevel: -150,
+            reverbLevel: 100,
             reverbDelay: 10,
-            diffusion: 780,
+            diffusion: 800,
             density: 900,
         },
     },
@@ -47,45 +49,45 @@ const presets: IReverbPreset[] = [
         i18nKey: "panel.reverb.preset.concert",
         params: {
             roomLevel: 0,
-            roomHFLevel: -700,
-            decayTime: 2800,
-            decayHFRatio: 480,
-            reflectionsLevel: -300,
-            reflectionsDelay: 32,
-            reverbLevel: 800,
-            reverbDelay: 45,
+            roomHFLevel: -400,
+            decayTime: 3000,
+            decayHFRatio: 500,
+            reflectionsLevel: -100,
+            reflectionsDelay: 40,
+            reverbLevel: 1000,
+            reverbDelay: 60,
             diffusion: 900,
-            density: 720,
+            density: 700,
         },
     },
     {
         id: "hall",
         i18nKey: "panel.reverb.preset.hall",
         params: {
-            roomLevel: -200,
-            roomHFLevel: -550,
-            decayTime: 1900,
-            decayHFRatio: 460,
-            reflectionsLevel: -500,
-            reflectionsDelay: 24,
-            reverbLevel: 500,
-            reverbDelay: 36,
+            roomLevel: 0,
+            roomHFLevel: -300,
+            decayTime: 2000,
+            decayHFRatio: 480,
+            reflectionsLevel: -150,
+            reflectionsDelay: 30,
+            reverbLevel: 700,
+            reverbDelay: 45,
             diffusion: 860,
-            density: 760,
+            density: 750,
         },
     },
     {
         id: "theater",
         i18nKey: "panel.reverb.preset.theater",
         params: {
-            roomLevel: -400,
-            roomHFLevel: -800,
-            decayTime: 1300,
+            roomLevel: -100,
+            roomHFLevel: -500,
+            decayTime: 1500,
             decayHFRatio: 600,
-            reflectionsLevel: -700,
-            reflectionsDelay: 18,
-            reverbLevel: 250,
-            reverbDelay: 28,
+            reflectionsLevel: -300,
+            reflectionsDelay: 20,
+            reverbLevel: 450,
+            reverbDelay: 30,
             diffusion: 820,
             density: 800,
         },
@@ -94,14 +96,14 @@ const presets: IReverbPreset[] = [
         id: "ktv",
         i18nKey: "panel.reverb.preset.ktv",
         params: {
-            roomLevel: -600,
-            roomHFLevel: -400,
-            decayTime: 720,
+            roomLevel: -150,
+            roomHFLevel: -250,
+            decayTime: 900,
             decayHFRatio: 900,
-            reflectionsLevel: -900,
+            reflectionsLevel: -500,
             reflectionsDelay: 10,
-            reverbLevel: 150,
-            reverbDelay: 18,
+            reverbLevel: 350,
+            reverbDelay: 20,
             diffusion: 700,
             density: 920,
         },
@@ -110,13 +112,13 @@ const presets: IReverbPreset[] = [
         id: "room",
         i18nKey: "panel.reverb.preset.room",
         params: {
-            roomLevel: -1500,
-            roomHFLevel: -900,
-            decayTime: 420,
+            roomLevel: -600,
+            roomHFLevel: -700,
+            decayTime: 500,
             decayHFRatio: 800,
-            reflectionsLevel: -1600,
+            reflectionsLevel: -800,
             reflectionsDelay: 6,
-            reverbLevel: -600,
+            reverbLevel: 0,
             reverbDelay: 12,
             diffusion: 700,
             density: 900,
@@ -131,9 +133,9 @@ function clamp(value: number, min: number, max: number) {
     return Math.min(max, Math.max(min, value));
 }
 
-/** 把「最小电平 ~ 预设电平」按强度线性插值 */
-function mixLevel(base: number, ratio: number) {
-    return Math.round(WET_MIN_LEVEL + (base - WET_MIN_LEVEL) * ratio);
+/** 按强度在「底板电平 ~ 预设电平」之间插值（强度越高湿声越明显） */
+function mixLevel(base: number, ratio: number, floor: number) {
+    return Math.round(base * ratio + floor * (1 - ratio));
 }
 
 export function getReverbPresets() {
@@ -153,9 +155,13 @@ export function buildReverbParams(
 
     return {
         ...preset.params,
-        roomLevel: mixLevel(preset.params.roomLevel, ratio),
-        reflectionsLevel: mixLevel(preset.params.reflectionsLevel, ratio),
-        reverbLevel: mixLevel(preset.params.reverbLevel, ratio),
+        roomLevel: mixLevel(preset.params.roomLevel, ratio, ROOM_FLOOR_LEVEL),
+        reflectionsLevel: mixLevel(
+            preset.params.reflectionsLevel,
+            ratio,
+            REFLECTION_FLOOR_LEVEL,
+        ),
+        reverbLevel: mixLevel(preset.params.reverbLevel, ratio, WET_FLOOR_LEVEL),
     };
 }
 
