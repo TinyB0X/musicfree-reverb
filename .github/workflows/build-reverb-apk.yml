@@ -1,0 +1,76 @@
+name: Build APK (with Reverb)
+
+# 用途：在 GitHub Actions 上直接产出可安装的 APK（自带临时签名，安装时无需原版签名）
+on:
+  workflow_dispatch:
+  push:
+    branches: [reverb, main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept licenses & install NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "ndk;26.1.10909125" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate signing keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/release.keystore \
+            -alias musicfree \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass musicfree -keypass musicfree \
+            -dname "CN=MusicFree Reverb Build"
+          cat > android/keystore.properties << 'EOF'
+          RELEASE_STORE_FILE=release.keystore
+          RELEASE_STORE_PASSWORD=musicfree
+          RELEASE_KEY_ALIAS=musicfree
+          RELEASE_KEY_PASSWORD=musicfree
+          EOF
+
+      - name: Build release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APKs (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: musicfree-reverb-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      # 公开仓库时，把 APK 附到 Release 上，方便直接下载（无需登录）
+      - name: Publish APKs to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag: reverb-build-${{ github.run_number }}
+          name: MusicFree 混响构建 ${{ github.run_number }}
+          body: 由 GitHub Actions 自动构建，内置临时签名（storepass/keypass = musicfree）。
+          files: android/app/build/outputs/apk/release/*.apk
+          prerelease: true
