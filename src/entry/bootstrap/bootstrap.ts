@@ -13,7 +13,11 @@ import MusicSheet from "@/core/musicSheet";
 import PluginManager from "@/core/pluginManager";
 import Theme from "@/core/theme";
 import TrackPlayer from "@/core/trackPlayer";
-import { reapplyReverb, restoreReverb } from "@/core/reverb";
+import {
+    forceReattachReverb,
+    reapplyReverb,
+    restoreReverb,
+} from "@/core/reverb";
 import NativeUtils from "@/native/utils";
 import { checkAndCreateDir } from "@/utils/fileUtils";
 import { errorLog, trace } from "@/utils/log";
@@ -202,6 +206,10 @@ export async function initTrackPlayer(logger?: IPerfLogger) {
     // 切歌时重新确认一次（audioSessionId 可能在开始播放后才生成）
     RNTrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
         reapplyReverb();
+        // 真正开始播放后再强制重挂一次：部分机型只有在 AudioTrack 已经存在时才会吃效果
+        setTimeout(() => {
+            forceReattachReverb();
+        }, 1500);
     });
 
     await lyricManager.setup();

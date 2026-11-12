@@ -514,6 +514,14 @@ export interface ILanguageData {
     "panel.reverb.unsupported": string; // 设备不支持
     "panel.reverb.status.env": string; // 参数化混响已生效
     "panel.reverb.status.noControl": string; // 系统未接管
+    "panel.reverb.advanced": string; // 高级参数
+    "panel.reverb.advanced.reset": string; // 恢复预设
+    "panel.reverb.advanced.wet": string; // 湿度
+    "panel.reverb.advanced.decay": string; // 衰减时间
+    "panel.reverb.advanced.damping": string; // 阻尼
+    "panel.reverb.advanced.preDelay": string; // 预延迟
+    "panel.reverb.eqTest": string; // 声音诊断
+    "panel.reverb.session": string; // 音频会话
     "panel.reverb.status.preset": string; // 预设混响
     "panel.reverb.failed": string; // 不可用原因
     "panel.reverb.preset.none": string; // 原声

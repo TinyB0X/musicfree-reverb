@@ -15,6 +15,17 @@ export type ReverbPresetId =
     | "ktv"
     | "room";
 
+export interface IReverbAdvanced {
+    /** 湿度（0~100），null 表示跟随预设 */
+    wet?: number;
+    /** 衰减时间 ms */
+    decay?: number;
+    /** 阻尼（0~100，越大高频越闷） */
+    damping?: number;
+    /** 预延迟 ms */
+    preDelay?: number;
+}
+
 export interface IReverbPreset {
     id: ReverbPresetId;
     i18nKey: keyof ILanguageData;
@@ -149,10 +160,36 @@ export function getReverbPreset(id?: string) {
 export function buildReverbParams(
     presetId: string,
     intensity: number,
+    advanced?: IReverbAdvanced,
 ): IReverbParams {
     const preset = getReverbPreset(presetId);
     const ratio = clamp(intensity, 0, 100) / 100;
+    const params = buildBaseParams(preset, ratio);
 
+    // 手动参数优先
+    if (typeof advanced?.wet === "number") {
+        params.reverbLevel = Math.round(-6000 + clamp(advanced.wet, 0, 100) * 80);
+    }
+    if (typeof advanced?.decay === "number") {
+        params.decayTime = Math.round(clamp(advanced.decay, 100, 8000));
+    }
+    if (typeof advanced?.damping === "number") {
+        const damping = clamp(advanced.damping, 0, 100);
+        params.diffusion = Math.round(1000 - damping * 10);
+        params.decayHFRatio = Math.round(1500 - damping * 13);
+    }
+    if (typeof advanced?.preDelay === "number") {
+        const pre = Math.round(clamp(advanced.preDelay, 0, 200));
+        params.reflectionsDelay = pre;
+        params.reverbDelay = Math.min(100, pre + 10);
+    }
+    return params;
+}
+
+function buildBaseParams(
+    preset: IReverbPreset,
+    ratio: number,
+): IReverbParams {
     return {
         ...preset.params,
         roomLevel: mixLevel(preset.params.roomLevel, ratio, ROOM_FLOOR_LEVEL),
@@ -163,6 +200,59 @@ export function buildReverbParams(
         ),
         reverbLevel: mixLevel(preset.params.reverbLevel, ratio, WET_FLOOR_LEVEL),
     };
+}
+
+const advancedStore = new GlobalState<IReverbAdvanced>(
+    PersistStatus.get("audio.reverbAdvanced") ?? {},
+);
+const eqTestStore = new GlobalState<boolean>(false);
+
+export function useReverbAdvanced() {
+    return advancedStore.useValue();
+}
+
+export function useEqTesting() {
+    const status = statusStore.useValue();
+    return !!status?.eqTesting;
+}
+
+export async function setReverbAdvanced(advanced: IReverbAdvanced) {
+    advancedStore.setValue(advanced);
+    PersistStatus.set("audio.reverbAdvanced", advanced);
+    if (enabledStore.getValue()) {
+        schedulePush(40);
+    }
+}
+
+export async function resetReverbAdvanced() {
+    advancedStore.setValue({});
+    PersistStatus.set("audio.reverbAdvanced", {});
+    if (enabledStore.getValue()) {
+        schedulePush();
+    }
+}
+
+export async function setEqTest(enabled: boolean) {
+    eqTestStore.setValue(enabled);
+    try {
+        if (enabled) {
+            await NativeReverb?.testEqualizer(true);
+        } else {
+            await NativeReverb?.testEqualizer(false);
+        }
+        scheduleStatusRefresh();
+    } catch {}
+}
+
+/** 切歌/真正开始播放后强制重新挂载（部分机型只有此刻才吃效果） */
+export async function forceReattachReverb() {
+    if (!NativeReverb || !enabledStore.getValue()) {
+        return;
+    }
+    try {
+        const status = await NativeReverb.forceReattach();
+        statusStore.setValue(status);
+    } catch {}
 }
 
 const enabledStore = new GlobalState<boolean>(
@@ -249,7 +339,11 @@ async function pushToNative() {
     try {
         const status = await NativeReverb.update(
             enabled,
-            buildReverbParams(presetStore.getValue(), intensityStore.getValue()),
+            buildReverbParams(
+                presetStore.getValue(),
+                intensityStore.getValue(),
+                advancedStore.getValue(),
+            ),
             presetStore.getValue(),
             intensityStore.getValue(),
         );

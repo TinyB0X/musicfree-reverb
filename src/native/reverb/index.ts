@@ -38,6 +38,12 @@ export interface INativeReverbStatus {
     presetAvailable: boolean;
     /** 效果器是否被音频框架真正接管（false 时通常听不出变化） */
     hasControl: boolean;
+    /** 诊断用：均衡器测试是否在进行 */
+    eqTesting: boolean;
+    /** 诊断用：均衡器是否被接管 */
+    eqHasControl: boolean;
+    /** 播放器当前真实的 audioSessionId */
+    liveSessionId: number;
 }
 
 export interface INativeReverb extends NativeModule {
@@ -49,6 +55,8 @@ export interface INativeReverb extends NativeModule {
     ) => Promise<INativeReverbStatus>;
     disable: () => Promise<INativeReverbStatus>;
     getStatus: () => Promise<INativeReverbStatus>;
+    forceReattach: () => Promise<INativeReverbStatus>;
+    testEqualizer: (enabled: boolean) => Promise<INativeReverbStatus>;
 }
 
 /** 仅 Android 端有原生混响模块 */

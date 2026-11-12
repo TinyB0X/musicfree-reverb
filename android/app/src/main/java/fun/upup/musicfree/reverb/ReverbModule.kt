@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.EnvironmentalReverb
+import android.media.audiofx.Equalizer
 import android.media.audiofx.PresetReverb
 import android.os.Handler
 import android.os.IBinder
@@ -69,6 +70,10 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
 
     /** 优先尝试的效果器类型（上一次未被系统接管就会切换） */
     private var preferredKind = "environmental"
+
+    /** 诊断用：均衡器（确认系统音效链路是否真的生效） */
+    private var eqEffect: Equalizer? = null
+    private var eqTesting = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -143,6 +148,77 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /** 强制重新挂载：切歌/真正开始播放后再挂一次，部分机型只有此时才吃效果 */
+    @ReactMethod
+    fun forceReattach(promise: Promise) {
+        runOnMain {
+            try {
+                if (targetEnabled) {
+                    releaseEffect()
+                    retryCount = 0
+                    gaveUp = false
+                    applyInternal()
+                }
+                promise.resolve(buildStatus())
+            } catch (t: Throwable) {
+                promise.reject("reverb_reattach_failed", t)
+            }
+        }
+    }
+
+    /** 诊断：给 60Hz 加 +12dB，用来判断系统音效链路到底通不通 */
+    @ReactMethod
+    fun testEqualizer(enabled: Boolean, promise: Promise) {
+        runOnMain {
+            try {
+                releaseEqualizer()
+                eqTesting = enabled
+                if (enabled) {
+                    val exo = findExoPlayer()
+                    var sid = exo?.let { getAudioSessionId(it) } ?: 0
+                    if (sid <= 0 && exo != null) {
+                        sid = createAudioSessionId(exo)
+                    }
+                    if (sid > 0) {
+                        val eq = Equalizer(0, sid)
+                        val bands = eq.numberOfBands
+                        if (bands > 0) {
+                            val center = eq.getBand(0).toInt()
+                            eq.setBandLevel(0, 1200)
+                            eq.setEnabled(true)
+                            eqEffect = eq
+                            lastError = null
+                            eqTesting = eq.hasControl()
+                            Log.i(TAG, "EQ 测试: bands=$bands center=$center session=$sid control=" + eq.hasControl())
+                        } else {
+                            lastError = "设备没有均衡器频段"
+                        }
+                    } else {
+                        lastError = "无法获取音频会话"
+                    }
+                }
+                promise.resolve(buildStatus())
+            } catch (t: Throwable) {
+                lastError = "均衡器测试失败: " + (t.message ?: t.javaClass.simpleName)
+                promise.resolve(buildStatus())
+            }
+        }
+    }
+
+    private fun releaseEqualizer() {
+        val eq = eqEffect ?: return
+        eqEffect = null
+        eqTesting = false
+        try {
+            eq.setEnabled(false)
+        } catch (_: Throwable) {
+        }
+        try {
+            eq.release()
+        } catch (_: Throwable) {
+        }
+    }
+
     @ReactMethod
     fun getStatus(promise: Promise) {
         runOnMain {
@@ -175,6 +251,10 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         status.putBoolean("envAvailable", effects.first)
         status.putBoolean("presetAvailable", effects.second)
         status.putBoolean("hasControl", effect?.hasControl() ?: false)
+        status.putBoolean("eqTesting", eqTesting)
+        status.putBoolean("eqHasControl", eqEffect?.hasControl() ?: false)
+        val exo = findExoPlayer()
+        status.putInt("liveSessionId", if (exo != null) getAudioSessionId(exo) else 0)
         return status
     }
 

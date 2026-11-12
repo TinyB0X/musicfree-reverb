@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import Slider from "@react-native-community/slider";
@@ -12,9 +12,13 @@ import { useI18N } from "@/core/i18n";
 import rpx from "@/utils/rpx";
 import {
     getReverbPresets,
+    resetReverbAdvanced,
+    setEqTest,
+    setReverbAdvanced,
     setReverbEnabled,
     setReverbIntensity,
     setReverbPreset,
+    useReverbAdvanced,
     useReverbEnabled,
     useReverbIntensity,
     useReverbPreset,
@@ -23,6 +27,47 @@ import {
 
 /** 「原声」卡片的伪 id */
 const EMPTY_PRESET = "none";
+
+interface IParamSliderProps {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    unit?: string;
+    disabled?: boolean;
+    onValueChange: (value: number) => void;
+}
+
+function ParamSlider(props: IParamSliderProps) {
+    const { label, value, min, max, step = 1, unit = "", disabled, onValueChange } = props;
+    const colors = useColors();
+
+    return (
+        <View style={styles.paramBlock}>
+            <View style={styles.paramHeader}>
+                <ThemeText fontSize="description" fontColor="textSecondary">
+                    {label}
+                </ThemeText>
+                <ThemeText fontSize="description" fontColor="textSecondary">
+                    {Math.round(value)}{unit}
+                </ThemeText>
+            </View>
+            <Slider
+                style={styles.paramSlider}
+                minimumValue={min}
+                maximumValue={max}
+                step={step}
+                value={value}
+                disabled={disabled}
+                thumbTintColor={colors.primary}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor={colors.placeholder}
+                onValueChange={onValueChange}
+            />
+        </View>
+    );
+}
 
 export default function ReverbPanel() {
     const i18n = useI18N();
@@ -33,6 +78,9 @@ export default function ReverbPanel() {
     const presetId = useReverbPreset();
     const intensity = useReverbIntensity();
     const status = useReverbStatus();
+    const advanced = useReverbAdvanced();
+
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     const activePreset = enabled ? presetId : EMPTY_PRESET;
 
@@ -47,9 +95,16 @@ export default function ReverbPanel() {
         })),
     ];
 
+    const updateAdvanced = (patch: Record<string, number>) => {
+        setReverbAdvanced({
+            ...advanced,
+            ...patch,
+        });
+    };
+
     return (
         <PanelBase
-            height={rpx(820)}
+            height={rpx(900)}
             keyboardAvoidBehavior="none"
             renderBody={() => (
                 <>
@@ -119,9 +174,7 @@ export default function ReverbPanel() {
                         </View>
 
                         <View style={styles.intensityHeader}>
-                            <ThemeText
-                                fontSize="subTitle"
-                                fontWeight="semibold">
+                            <ThemeText fontSize="subTitle" fontWeight="semibold">
                                 {i18n.t("panel.reverb.intensity")}
                             </ThemeText>
                             <ThemeText
@@ -145,6 +198,75 @@ export default function ReverbPanel() {
                                 setReverbIntensity(value);
                             }}
                         />
+
+                        <Pressable
+                            style={styles.advancedHeader}
+                            onPress={() => setShowAdvanced(v => !v)}>
+                            <ThemeText fontSize="subTitle" fontWeight="semibold">
+                                {i18n.t("panel.reverb.advanced")}
+                                {showAdvanced ? "  ▾" : "  ▸"}
+                            </ThemeText>
+                            <ThemeText
+                                fontSize="description"
+                                fontColor="textHighlight"
+                                onPress={() => resetReverbAdvanced()}>
+                                {i18n.t("panel.reverb.advanced.reset")}
+                            </ThemeText>
+                        </Pressable>
+
+                        {showAdvanced ? (
+                            <View style={styles.advancedBody}>
+                                <ParamSlider
+                                    label={i18n.t("panel.reverb.advanced.wet")}
+                                    value={advanced.wet ?? 50}
+                                    min={0}
+                                    max={100}
+                                    unit="%"
+                                    disabled={!enabled}
+                                    onValueChange={v => updateAdvanced({ wet: v })}
+                                />
+                                <ParamSlider
+                                    label={i18n.t("panel.reverb.advanced.decay")}
+                                    value={advanced.decay ?? 2000}
+                                    min={100}
+                                    max={8000}
+                                    step={50}
+                                    unit="ms"
+                                    disabled={!enabled}
+                                    onValueChange={v => updateAdvanced({ decay: v })}
+                                />
+                                <ParamSlider
+                                    label={i18n.t("panel.reverb.advanced.damping")}
+                                    value={advanced.damping ?? 30}
+                                    min={0}
+                                    max={100}
+                                    unit="%"
+                                    disabled={!enabled}
+                                    onValueChange={v => updateAdvanced({ damping: v })}
+                                />
+                                <ParamSlider
+                                    label={i18n.t("panel.reverb.advanced.preDelay")}
+                                    value={advanced.preDelay ?? 20}
+                                    min={0}
+                                    max={200}
+                                    unit="ms"
+                                    disabled={!enabled}
+                                    onValueChange={v => updateAdvanced({ preDelay: v })}
+                                />
+                            </View>
+                        ) : null}
+
+                        <View style={styles.eqRow}>
+                            <ThemeText fontSize="description">
+                                {i18n.t("panel.reverb.eqTest")}
+                            </ThemeText>
+                            <ThemeSwitch
+                                value={!!status?.eqTesting}
+                                onValueChange={value => {
+                                    setEqTest(!!value);
+                                }}
+                            />
+                        </View>
 
                         <ThemeText
                             style={styles.tip}
@@ -175,6 +297,20 @@ export default function ReverbPanel() {
                                         status?.error ||
                                         i18n.t("panel.reverb.unsupported"),
                                 })}
+                            </ThemeText>
+                        ) : null}
+                        {status ? (
+                            <ThemeText
+                                style={styles.unsupported}
+                                fontSize="description"
+                                fontColor="textSecondary">
+                                {i18n.t("panel.reverb.session", {
+                                    id: String(status.liveSessionId),
+                                })}
+                                {status.eqTesting
+                                    ? "  ·  EQ " +
+                                      (status.eqHasControl ? "OK" : "NO-CTRL")
+                                    : ""}
                             </ThemeText>
                         ) : null}
                     </ScrollView>
@@ -221,18 +357,51 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginTop: rpx(24),
+        marginTop: rpx(16),
         marginBottom: rpx(4),
     },
     slider: {
         width: "100%",
         height: rpx(72),
     },
-    tip: {
+    advancedHeader: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: rpx(12),
+        height: rpx(72),
+    },
+    advancedBody: {
+        width: "100%",
+    },
+    paramBlock: {
+        width: "100%",
+    },
+    paramHeader: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         marginTop: rpx(8),
+    },
+    paramSlider: {
+        width: "100%",
+        height: rpx(60),
+    },
+    eqRow: {
+        width: "100%",
+        height: rpx(80),
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: rpx(12),
+    },
+    tip: {
+        marginTop: rpx(4),
         lineHeight: rpx(34),
     },
     unsupported: {
-        marginTop: rpx(12),
+        marginTop: rpx(10),
     },
 });
