@@ -64,11 +64,16 @@ jobs:
           chmod 600 android/keystore.properties android/app/release.keystore
           keytool -list -v -keystore android/app/release.keystore -storepass musicfree | grep -E "Alias name|SHA256:" || true
 
+      - name: Tune Gradle memory for CI
+        run: |
+          sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
+          grep jvmargs android/gradle.properties || true
+
       - name: Build release APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Verify APK signature
         run: |
