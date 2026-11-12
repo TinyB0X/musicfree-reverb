@@ -125,7 +125,8 @@ android {
     namespace "fun.upup.musicfree"
 
     defaultConfig {
-        applicationId "fun.upup.musicfree"
+        // 独立包名：可以和官方版本共存安装（数据互相独立）
+        applicationId "fun.upup.musicfree.reverb"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
