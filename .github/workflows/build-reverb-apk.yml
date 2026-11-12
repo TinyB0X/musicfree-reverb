@@ -49,26 +49,31 @@ jobs:
           sed -i '/maven.aliyun.com/d' android/build.gradle
           sed -n '1,22p' android/build.gradle
 
-      - name: Generate signing keystore
+      - name: Restore fixed test signing key
+        # 用仓库里固定的测试签名（android/test-signing.b64，base64 的 PKCS12），
+        # 与官方签名不同、但每次构建完全一致 —— 同一个测试版可以直接覆盖安装。
+        # 注意：这是公开的测试用密钥，不要用于正式分发。
         run: |
-          keytool -genkeypair -v \
-            -keystore android/app/release.keystore \
-            -alias musicfree \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass musicfree -keypass musicfree \
-            -dname "CN=MusicFree Reverb Build"
+          base64 -d android/test-signing.b64 > android/app/release.keystore
           cat > android/keystore.properties << 'EOF'
           RELEASE_STORE_FILE=release.keystore
           RELEASE_STORE_PASSWORD=musicfree
-          RELEASE_KEY_ALIAS=musicfree
+          RELEASE_KEY_ALIAS=musicfree-test
           RELEASE_KEY_PASSWORD=musicfree
           EOF
+          chmod 600 android/keystore.properties android/app/release.keystore
+          keytool -list -v -keystore android/app/release.keystore -storepass musicfree | grep -E "Alias name|SHA256:" || true
 
       - name: Build release APK
         run: |
           chmod +x android/gradlew
           cd android
           ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK signature
+        run: |
+          BT=$(ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/* | tail -1)
+          "$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-arm64-v8a-release.apk | head -8
 
       - name: Upload APKs (artifact)
         uses: actions/upload-artifact@v4
@@ -83,6 +88,6 @@ jobs:
         with:
           tag: reverb-build-${{ github.run_number }}
           name: MusicFree 混响构建 ${{ github.run_number }}
-          body: 由 GitHub Actions 自动构建，内置临时签名（storepass/keypass = musicfree）。
+          body: 由 GitHub Actions 自动构建，使用固定测试签名（与官方不同，可覆盖安装同一测试版；口令 musicfree）。
           files: android/app/build/outputs/apk/release/*.apk
           prerelease: true

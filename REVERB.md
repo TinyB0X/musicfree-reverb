@@ -56,6 +56,14 @@ cd android
 # 产物：android/app/build/outputs/apk/release/*.apk
 ```
 
+## 签名
+
+CI 使用仓库内固定的**测试签名**（`android/test-signing.b64`，base64 存储的 PKCS12；口令/别名见 workflow）：
+
+- 与官方签名不同 → 安装前必须先卸载官方版（只需一次）
+- 每次构建签名完全一致 → 之后的新测试包可以直接覆盖安装，便于迭代测试
+- 这是公开的测试密钥，**不要用于正式分发**
+
 ## 注意事项
 
 - 混响使用 Android 系统提供的 `EnvironmentalReverb`，不同机型 / 音频 HAL 的支持程度不同，
