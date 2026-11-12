@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.EnvironmentalReverb
+import android.media.audiofx.PresetReverb
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -23,43 +24,48 @@ import com.facebook.react.bridge.WritableMap
  * 混响（Reverb）原生模块。
  *
  * 原理：
- *  1. 通过 ServiceConnection 绑定 react-native-track-player 的 MusicService，
- *     拿到 MusicService 实例后反射出内部的 QueuedAudioPlayer（kotlin-audio），
- *     再通过公开的 getExoPlayer() 拿到 ExoPlayer。
- *  2. 读取 / 设置 ExoPlayer 的 audioSessionId，用 EnvironmentalReverb
- *     把混响效果挂到本应用自己的音频会话上（不需要系统权限，也不影响其它 App）。
- *  3. 播放尚未开始、session 还没生成时，会定时重试挂载。
+ *  1. 绑定 react-native-track-player 的 MusicService，反射拿到 QueuedAudioPlayer，
+ *     再通过公开的 getExoPlayer() 取得 ExoPlayer。
+ *  2. 读取 / 生成 ExoPlayer 的 audioSessionId，把系统混响效果挂到本应用自己的音频会话上。
+ *  3. 效果器有两套：优先 EnvironmentalReverb（可精细调节），
+ *     设备不支持时退化为 PresetReverb（只能选房间类型）。
+ *  4. 播放未开始时 session 还没生成，会定时重试；连续失败会在状态里给出原因，
+ *     方便前端展示「为什么不可用」。
  */
 class ReverbModule(private val reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
     companion object {
         private const val TAG = "ReverbModule"
-        /** react-native-track-player 的播放服务 */
         private const val MUSIC_SERVICE_CLASS =
             "com.doublesymmetry.trackplayer.service.MusicService"
-        /** 重试间隔 */
         private const val RETRY_INTERVAL_MS = 500L
-        /** 最多重试次数（约 20 秒） */
         private const val MAX_RETRY_COUNT = 40
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** 播放服务 */
     private var musicService: Any? = null
     private var binding = false
     private var bindCallbacks: MutableList<() -> Unit> = mutableListOf()
 
-    /** 当前挂载的混响实例 */
-    private var effect: EnvironmentalReverb? = null
+    /** 当前挂载的效果器 */
+    private var effect: AudioEffect? = null
+    /** environmental / preset */
+    private var effectKind: String? = null
     private var attachedSessionId = 0
 
-    /** 目标状态 */
     private var targetEnabled = false
     private var targetParams: ReverbParams? = null
+    private var targetPresetId = "studio"
+    private var targetIntensity = 60
 
     private var retryCount = 0
+    private var gaveUp = false
+    private var lastError: String? = null
+
+    /** 缓存设备上是否存在对应类型的系统效果器 */
+    private var deviceEffects: Pair<Boolean, Boolean>? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -90,18 +96,23 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
 
     override fun getName() = "Reverb"
 
-    /**
-     * 应用混响参数
-     * @param enabled 是否开启
-     * @param params 混响参数
-     */
     @ReactMethod
-    fun update(enabled: Boolean, params: ReadableMap?, promise: Promise) {
+    fun update(
+        enabled: Boolean,
+        params: ReadableMap?,
+        presetId: String?,
+        intensity: Int,
+        promise: Promise,
+    ) {
         runOnMain {
             try {
                 targetEnabled = enabled
                 targetParams = params?.let { parseParams(it) }
+                targetPresetId = presetId ?: "studio"
+                targetIntensity = intensity
                 retryCount = 0
+                gaveUp = false
+                lastError = null
 
                 if (enabled) {
                     applyInternal()
@@ -116,7 +127,6 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    /** 关闭混响 */
     @ReactMethod
     fun disable(promise: Promise) {
         runOnMain {
@@ -130,7 +140,6 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    /** 当前状态（不会阻塞等待服务绑定，绑定在后台进行） */
     @ReactMethod
     fun getStatus(promise: Promise) {
         runOnMain {
@@ -153,14 +162,20 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
 
     private fun buildStatus(): WritableMap {
         val status = Arguments.createMap()
+        val effects = queryDeviceEffects()
         status.putBoolean("supported", effect != null)
         status.putBoolean("enabled", targetEnabled && effect != null)
         status.putInt("sessionId", attachedSessionId)
+        status.putString("effectKind", effectKind)
+        status.putString("error", lastError)
+        status.putBoolean("gaveUp", gaveUp)
+        status.putBoolean("envAvailable", effects.first)
+        status.putBoolean("presetAvailable", effects.second)
         return status
     }
 
     // ------------------------------------------------------------------
-    // 挂载逻辑
+    // 挂载
     // ------------------------------------------------------------------
 
     private fun applyInternal() {
@@ -168,10 +183,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             return
         }
         val params = targetParams ?: return
-
-        ensureBound {
-            tryApply(params)
-        }
+        ensureBound { tryApply(params) }
     }
 
     private fun ensureBound(onBound: () -> Unit) {
@@ -179,7 +191,6 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             onBound()
             return
         }
-
         bindCallbacks.add(onBound)
         if (binding) {
             return
@@ -198,10 +209,12 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             if (!connected) {
                 binding = false
                 bindCallbacks.clear()
+                lastError = "绑定播放服务失败"
             }
         } catch (t: Throwable) {
             binding = false
             bindCallbacks.clear()
+            lastError = "绑定播放服务失败: " + (t.message ?: "")
             Log.w(TAG, "绑定播放服务失败", t)
         }
     }
@@ -212,7 +225,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
         val exoPlayer = findExoPlayer()
         if (exoPlayer == null) {
-            scheduleRetry()
+            scheduleRetry("播放器尚未就绪")
             return
         }
 
@@ -221,53 +234,81 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             sessionId = createAudioSessionId(exoPlayer)
         }
         if (sessionId <= 0) {
-            scheduleRetry()
+            scheduleRetry("无法获取音频会话")
             return
         }
 
         val current = effect
         if (current != null && attachedSessionId == sessionId) {
             try {
-                applyParams(current, params)
+                applyParams()
+                current.setEnabled(true)
+                lastError = null
             } catch (t: Throwable) {
+                lastError = "应用参数失败: " + (t.message ?: "")
                 releaseEffect()
-                scheduleRetry()
+                scheduleRetry(lastError!!)
             }
             return
         }
 
         releaseEffect()
-
-        val newEffect = try {
-            // 0 == AudioEffect.EFFECT_PRIORITY_NORMAL（该常量在公开 SDK 中不可见）
-            EnvironmentalReverb(0, sessionId)
-        } catch (t: Throwable) {
-            Log.w(TAG, "创建 EnvironmentalReverb 失败，session=$sessionId", t)
-            null
-        }
-
-        if (newEffect == null) {
-            // 设备不支持，或者音频轨道尚未创建，稍后重试
-            scheduleRetry()
+        val created = createEffect(sessionId, params)
+        if (created == null) {
+            scheduleRetry(lastError ?: "设备未提供混响效果器")
             return
         }
 
-        effect = newEffect
+        effect = created
         attachedSessionId = sessionId
         try {
-            applyParams(newEffect, params)
-            // 注意：AudioEffect.setEnabled 返回 int，不是 Kotlin 的合成属性
-            newEffect.setEnabled(true)
+            applyParams()
+            created.setEnabled(true)
             retryCount = 0
+            gaveUp = false
+            lastError = null
         } catch (t: Throwable) {
+            lastError = "启用效果失败: " + (t.message ?: "")
             Log.w(TAG, "应用混响参数失败", t)
             releaseEffect()
-            scheduleRetry()
+            scheduleRetry(lastError!!)
         }
     }
 
-    private fun scheduleRetry() {
+    /**
+     * 优先参数化混响（EnvironmentalReverb），不支持时退化为预设混响（PresetReverb）。
+     * 都不行则返回 null，并把原因写进 lastError。
+     */
+    private fun createEffect(sessionId: Int, params: ReverbParams): AudioEffect? {
+        val errors = mutableListOf<String>()
+
+        try {
+            val env = EnvironmentalReverb(0, sessionId)
+            effectKind = "environmental"
+            return env
+        } catch (t: Throwable) {
+            errors.add("EnvironmentalReverb: " + (t.message ?: t.javaClass.simpleName))
+            Log.w(TAG, "创建 EnvironmentalReverb 失败, session=$sessionId", t)
+        }
+
+        try {
+            val preset = PresetReverb(0, sessionId)
+            effectKind = "preset"
+            return preset
+        } catch (t: Throwable) {
+            errors.add("PresetReverb: " + (t.message ?: t.javaClass.simpleName))
+            Log.w(TAG, "创建 PresetReverb 失败, session=$sessionId", t)
+        }
+
+        effectKind = null
+        lastError = errors.joinToString(" | ")
+        return null
+    }
+
+    private fun scheduleRetry(reason: String) {
+        lastError = reason
         if (!targetEnabled || retryCount >= MAX_RETRY_COUNT) {
+            gaveUp = retryCount >= MAX_RETRY_COUNT
             return
         }
         retryCount++
@@ -292,14 +333,20 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
-    private fun applyParams(effect: EnvironmentalReverb, params: ReverbParams) {
+    private fun applyParams() {
+        val current = effect ?: return
+        when (effectKind) {
+            "environmental" -> applyEnvironmental(current as EnvironmentalReverb, targetParams ?: return)
+            "preset" -> applyPresetReverb(current as PresetReverb)
+        }
+    }
+
+    private fun applyEnvironmental(effect: EnvironmentalReverb, params: ReverbParams) {
         effect.setRoomLevel(params.roomLevel.coerceIn(-9000, 0).toShort())
         effect.setRoomHFLevel(params.roomHFLevel.coerceIn(-9000, 0).toShort())
         effect.setDecayTime(params.decayTime.coerceIn(100, 20000))
         effect.setDecayHFRatio(params.decayHFRatio.coerceIn(100, 2000).toShort())
-        effect.setReflectionsLevel(
-            params.reflectionsLevel.coerceIn(-9000, 1000).toShort()
-        )
+        effect.setReflectionsLevel(params.reflectionsLevel.coerceIn(-9000, 1000).toShort())
         effect.setReflectionsDelay(params.reflectionsDelay.coerceIn(0, 300))
         effect.setReverbLevel(params.reverbLevel.coerceIn(-9000, 2000).toShort())
         effect.setReverbDelay(params.reverbDelay.coerceIn(0, 100))
@@ -307,8 +354,26 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         effect.setDensity(params.density.coerceIn(0, 1000).toShort())
     }
 
+    /** PresetReverb 无法调节参数，只能按预设 + 强度挑一个房间类型 */
+    private fun applyPresetReverb(effect: PresetReverb) {
+        val preset = if (targetIntensity < 15) {
+            PresetReverb.PRESET_NONE
+        } else {
+            when (targetPresetId) {
+                "studio" -> if (targetIntensity < 55) PresetReverb.PRESET_SMALLROOM else PresetReverb.PRESET_MEDIUMROOM
+                "room" -> PresetReverb.PRESET_SMALLROOM
+                "ktv" -> PresetReverb.PRESET_MEDIUMROOM
+                "theater" -> PresetReverb.PRESET_LARGEROOM
+                "hall" -> if (targetIntensity < 60) PresetReverb.PRESET_MEDIUMHALL else PresetReverb.PRESET_LARGEHALL
+                "concert" -> PresetReverb.PRESET_LARGEHALL
+                else -> PresetReverb.PRESET_MEDIUMROOM
+            }
+        }
+        effect.setPreset(preset)
+    }
+
     // ------------------------------------------------------------------
-    // 反射工具：拿到 ExoPlayer / audioSessionId
+    // 反射：拿到 ExoPlayer / audioSessionId
     // ------------------------------------------------------------------
 
     private fun findExoPlayer(): Any? {
@@ -333,9 +398,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
 
     private fun getAudioSessionId(exoPlayer: Any): Int {
         return try {
-            val value = exoPlayer.javaClass
-                .getMethod("getAudioSessionId")
-                .invoke(exoPlayer)
+            val value = exoPlayer.javaClass.getMethod("getAudioSessionId").invoke(exoPlayer)
             (value as? Int) ?: 0
         } catch (t: Throwable) {
             0
@@ -363,8 +426,29 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     }
 
     // ------------------------------------------------------------------
-    // 参数解析
+    // 设备能力 & 参数解析
     // ------------------------------------------------------------------
+
+    private fun queryDeviceEffects(): Pair<Boolean, Boolean> {
+        deviceEffects?.let { return it }
+        var env = false
+        var preset = false
+        try {
+            AudioEffect.queryEffects()?.forEach { descriptor ->
+                if (descriptor.type == AudioEffect.EFFECT_TYPE_ENV_REVERB) {
+                    env = true
+                }
+                if (descriptor.type == AudioEffect.EFFECT_TYPE_PRESET_REVERB) {
+                    preset = true
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "查询系统效果器失败", t)
+        }
+        val result = Pair(env, preset)
+        deviceEffects = result
+        return result
+    }
 
     private data class ReverbParams(
         val roomLevel: Int,

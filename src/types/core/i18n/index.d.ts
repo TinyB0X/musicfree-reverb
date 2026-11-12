@@ -512,6 +512,9 @@ export interface ILanguageData {
     "panel.reverb.intensity": string; // 混响强度
     "panel.reverb.tip": string; // 提示
     "panel.reverb.unsupported": string; // 设备不支持
+    "panel.reverb.status.env": string; // 参数化混响已生效
+    "panel.reverb.status.preset": string; // 预设混响
+    "panel.reverb.failed": string; // 不可用原因
     "panel.reverb.preset.none": string; // 原声
     "panel.reverb.preset.studio": string; // 录音棚
     "panel.reverb.preset.concert": string; // 演唱会

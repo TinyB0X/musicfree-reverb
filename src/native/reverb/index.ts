@@ -7,41 +7,43 @@ import { NativeModule, NativeModules, Platform } from "react-native";
  *  - 比例类：千分比（0 ~ 1000）
  */
 export interface IReverbParams {
-    /** 房间混响电平 */
     roomLevel: number;
-    /** 房间高频混响电平 */
     roomHFLevel: number;
-    /** 衰减时间（ms） */
     decayTime: number;
-    /** 高频衰减比例 */
     decayHFRatio: number;
-    /** 早期反射电平 */
     reflectionsLevel: number;
-    /** 早期反射延迟（ms） */
     reflectionsDelay: number;
-    /** 混响（湿声）电平 */
     reverbLevel: number;
-    /** 混响延迟（ms） */
     reverbDelay: number;
-    /** 扩散度 */
     diffusion: number;
-    /** 密度 */
     density: number;
 }
 
 export interface INativeReverbStatus {
-    /** 是否已成功挂载混响效果 */
+    /** 是否已成功挂载效果器 */
     supported: boolean;
     /** 当前是否处于开启状态 */
     enabled: boolean;
     /** 挂载的 audioSessionId */
     sessionId: number;
+    /** environmental = 参数化混响，preset = 预设混响，null = 未挂载 */
+    effectKind: "environmental" | "preset" | null;
+    /** 最近一次失败原因 */
+    error: string | null;
+    /** 是否已经重试到上限（真的不可用） */
+    gaveUp: boolean;
+    /** 系统是否存在参数化混响效果器 */
+    envAvailable: boolean;
+    /** 系统是否存在预设混响效果器 */
+    presetAvailable: boolean;
 }
 
 export interface INativeReverb extends NativeModule {
     update: (
         enabled: boolean,
         params: IReverbParams,
+        presetId: string,
+        intensity: number,
     ) => Promise<INativeReverbStatus>;
     disable: () => Promise<INativeReverbStatus>;
     getStatus: () => Promise<INativeReverbStatus>;

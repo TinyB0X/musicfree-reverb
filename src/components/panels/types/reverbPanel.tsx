@@ -18,7 +18,7 @@ import {
     useReverbEnabled,
     useReverbIntensity,
     useReverbPreset,
-    useReverbSupported,
+    useReverbStatus,
 } from "@/core/reverb";
 
 /** 「原声」卡片的伪 id */
@@ -32,7 +32,7 @@ export default function ReverbPanel() {
     const enabled = useReverbEnabled();
     const presetId = useReverbPreset();
     const intensity = useReverbIntensity();
-    const supported = useReverbSupported();
+    const status = useReverbStatus();
 
     const activePreset = enabled ? presetId : EMPTY_PRESET;
 
@@ -153,12 +153,26 @@ export default function ReverbPanel() {
                             {i18n.t("panel.reverb.tip")}
                         </ThemeText>
 
-                        {enabled && !supported ? (
+                        {enabled && status?.supported ? (
+                            <ThemeText
+                                style={styles.unsupported}
+                                fontSize="description"
+                                fontColor="textSecondary">
+                                {status.effectKind === "environmental"
+                                    ? i18n.t("panel.reverb.status.env")
+                                    : i18n.t("panel.reverb.status.preset")}
+                            </ThemeText>
+                        ) : null}
+                        {enabled && !status?.supported && status?.gaveUp ? (
                             <ThemeText
                                 style={styles.unsupported}
                                 fontSize="description"
                                 color={colors.danger}>
-                                {i18n.t("panel.reverb.unsupported")}
+                                {i18n.t("panel.reverb.failed", {
+                                    reason:
+                                        status?.error ||
+                                        i18n.t("panel.reverb.unsupported"),
+                                })}
                             </ThemeText>
                         ) : null}
                     </ScrollView>

@@ -25,6 +25,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Setup Android SDK
         # GitHub 的 ubuntu runner 自带 Android SDK；之前用 android-actions/setup-android@v3
@@ -64,10 +74,13 @@ jobs:
           chmod 600 android/keystore.properties android/app/release.keystore
           keytool -list -v -keystore android/app/release.keystore -storepass musicfree | grep -E "Alias name|SHA256:" || true
 
-      - name: Tune Gradle memory for CI
+      - name: Tune Gradle for fast CI
         run: |
           sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
-          grep jvmargs android/gradle.properties || true
+          # 只编 arm64-v8a（真机基本都是），省掉 3 份 C++ 编译时间
+          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/' android/gradle.properties
+          sed -i 's/include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"/include "arm64-v8a"/' android/app/build.gradle
+          grep -E "jvmargs|reactNativeArchitectures" android/gradle.properties || true
 
       - name: Build release APK
         run: |

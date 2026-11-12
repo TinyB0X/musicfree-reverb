@@ -1,4 +1,7 @@
-import NativeReverb, { IReverbParams } from "@/native/reverb";
+import NativeReverb, {
+    INativeReverbStatus,
+    IReverbParams,
+} from "@/native/reverb";
 import { errorLog } from "@/utils/log";
 import PersistStatus from "@/utils/persistStatus";
 import { GlobalState } from "@/utils/stateMapper";
@@ -167,6 +170,8 @@ const intensityStore = new GlobalState<number>(
 );
 /** 设备/系统是否真的支持混响 */
 const supportedStore = new GlobalState<boolean>(!!NativeReverb);
+/** 原生侧最近一次状态（用于面板展示诊断信息） */
+const statusStore = new GlobalState<INativeReverbStatus | null>(null);
 
 export function useReverbEnabled() {
     return enabledStore.useValue();
@@ -182,6 +187,10 @@ export function useReverbIntensity() {
 
 export function useReverbSupported() {
     return supportedStore.useValue();
+}
+
+export function useReverbStatus() {
+    return statusStore.useValue();
 }
 
 export function isReverbAvailable() {
@@ -202,9 +211,15 @@ async function refreshStatus() {
     }
     try {
         const status = await NativeReverb.getStatus();
-        supportedStore.setValue(!!status.supported);
+        statusStore.setValue(status);
+        // 只有真正挂上效果器、或者已经彻底重试失败，才更新「是否支持」
+        if (status.supported) {
+            supportedStore.setValue(true);
+        } else if (status.gaveUp) {
+            supportedStore.setValue(false);
+        }
     } catch {
-        supportedStore.setValue(false);
+        // 原生模块异常，保留上一次状态
     }
 }
 
@@ -229,10 +244,11 @@ async function pushToNative() {
         const status = await NativeReverb.update(
             enabled,
             buildReverbParams(presetStore.getValue(), intensityStore.getValue()),
+            presetStore.getValue(),
+            intensityStore.getValue(),
         );
-        if (!enabled) {
-            supportedStore.setValue(true);
-        } else if (status.supported) {
+        statusStore.setValue(status);
+        if (!enabled || status.supported) {
             supportedStore.setValue(true);
         }
         // 开启时原生可能还在等播放器创建 session，稍后再刷新
