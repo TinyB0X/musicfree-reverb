@@ -91,7 +91,7 @@ jobs:
       - name: Publish APKs to release
         uses: softprops/action-gh-release@v2
         with:
-          tag: reverb-build-${{ github.run_number }}
+          tag_name: reverb-build-${{ github.run_number }}
           name: MusicFree 混响构建 ${{ github.run_number }}
           body: 由 GitHub Actions 自动构建，使用固定测试签名（与官方不同，可覆盖安装同一测试版；口令 musicfree）。
           files: android/app/build/outputs/apk/release/*.apk
