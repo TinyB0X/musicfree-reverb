@@ -329,7 +329,9 @@ export default function ReverbPanel() {
                                     ? "  ·  EQ " +
                                       (status.eqHasControl ? "OK" : "NO-CTRL")
                                     : ""}
-                                {"  ·  DSP " +
+                                {"  ·  player=" +
+                                    (status.playerFound ? "OK" : "NO") +
+                                    " DSP " +
                                     (status.dspInstalled ? "ON" : "OFF") +
                                     " cfg=" +
                                     status.dspConfigureCount +

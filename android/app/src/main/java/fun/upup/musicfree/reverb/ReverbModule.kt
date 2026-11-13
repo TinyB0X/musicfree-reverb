@@ -257,11 +257,10 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
         val player = findExoPlayer() ?: return false
         return try {
-            val count = player.javaClass.getMethod("getRendererCount").invoke(player) as Int
+            val count = (invokeAny(player, "getRendererCount") as? Int) ?: 0
+            Log.i(TAG, "渲染器数量 = " + count)
             for (i in 0 until count) {
-                val renderer = player.javaClass
-                    .getMethod("getRenderer", Int::class.javaPrimitiveType)
-                    .invoke(player, i) ?: continue
+                val renderer = invokeAny(player, "getRenderer", i) ?: continue
                 if (renderer !is MediaCodecAudioRenderer) {
                     continue
                 }
@@ -281,16 +280,8 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 // 记录当前播放进度：换 sink 后 seek 一次，让渲染器重新 configure 新 sink
-                val position = try {
-                    player.javaClass.getMethod("getCurrentPosition").invoke(player) as Long
-                } catch (_: Throwable) {
-                    0L
-                }
-                val playing = try {
-                    player.javaClass.getMethod("isPlaying").invoke(player) as Boolean
-                } catch (_: Throwable) {
-                    false
-                }
+                val position = (invokeAny(player, "getCurrentPosition") as? Long) ?: 0L
+                val playing = (invokeAny(player, "isPlaying") as? Boolean) ?: false
 
                 field.set(renderer, newSink)
                 try {
@@ -299,12 +290,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 if (playing || position > 0) {
-                    try {
-                        player.javaClass
-                            .getMethod("seekTo", Long::class.javaPrimitiveType)
-                            .invoke(player, position)
-                    } catch (_: Throwable) {
-                    }
+                    invokeAny(player, "seekTo", position)
                 }
 
                 dspInstalled = true
@@ -385,6 +371,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         status.putBoolean("eqTesting", eqTesting)
         status.putBoolean("eqHasControl", eqEffect?.hasControl() ?: false)
         val exo = findExoPlayer()
+        status.putBoolean("playerFound", exo != null)
         status.putInt("liveSessionId", if (exo != null) getAudioSessionId(exo) else 0)
         return status
     }
@@ -603,11 +590,32 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     private fun findExoPlayer(): Any? {
         val service = musicService ?: return null
         val player = readField(service, "player") ?: return null
-        return try {
-            player.javaClass.getMethod("getExoPlayer").invoke(player)
-        } catch (t: Throwable) {
-            null
+        // 注意：kotlin-audio 的 getExoPlayer() 是 protected，必须用 declaredMethods 找
+        return invokeAny(player, "getExoPlayer")
+    }
+
+    /**
+     * 反射调用：沿类继承链查找方法（getMethod 只能找到 public，这里用 declaredMethods + setAccessible）
+     */
+    private fun invokeAny(target: Any?, name: String, vararg args: Any?): Any? {
+        if (target == null) {
+            return null
         }
+        var clazz: Class<*>? = target.javaClass
+        while (clazz != null && clazz != Any::class.java) {
+            for (method in clazz.declaredMethods) {
+                if (method.name == name && method.parameterCount == args.size) {
+                    try {
+                        method.isAccessible = true
+                        return method.invoke(target, *args)
+                    } catch (_: Throwable) {
+                        // 继续找下一个同名方法
+                    }
+                }
+            }
+            clazz = clazz.superclass
+        }
+        return null
     }
 
     private fun readField(target: Any, name: String): Any? {
@@ -621,12 +629,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun getAudioSessionId(exoPlayer: Any): Int {
-        return try {
-            val value = exoPlayer.javaClass.getMethod("getAudioSessionId").invoke(exoPlayer)
-            (value as? Int) ?: 0
-        } catch (t: Throwable) {
-            0
-        }
+        return (invokeAny(exoPlayer, "getAudioSessionId") as? Int) ?: 0
     }
 
     private fun createAudioSessionId(exoPlayer: Any): Int {
@@ -638,9 +641,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             if (newId <= 0) {
                 return 0
             }
-            exoPlayer.javaClass
-                .getMethod("setAudioSessionId", Integer.TYPE)
-                .invoke(exoPlayer, newId)
+            invokeAny(exoPlayer, "setAudioSessionId", newId)
             val current = getAudioSessionId(exoPlayer)
             if (current > 0) current else newId
         } catch (t: Throwable) {
