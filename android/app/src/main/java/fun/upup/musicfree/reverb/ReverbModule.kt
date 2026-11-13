@@ -285,9 +285,18 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                     newSink.setListener(listener)
                 }
 
-                // 记录当前播放进度：换 sink 后 seek 一次，让渲染器重新 configure 新 sink
                 val position = (invokeAny(player, "getCurrentPosition") as? Long) ?: 0L
                 val playing = (invokeAny(player, "isPlaying") as? Boolean) ?: false
+
+                // 关键：新 sink 没有收到过 play()，直接换上去会「处理了数据但不出声」。
+                // 先暂停，换完再 seek + play，让渲染器重新 configure/start 新 sink。
+                if (playing) {
+                    invokeAny(player, "pause")
+                    try {
+                        Thread.sleep(80)
+                    } catch (_: Throwable) {
+                    }
+                }
 
                 field.set(renderer, newSink)
                 try {
@@ -295,8 +304,9 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                 } catch (_: Throwable) {
                 }
 
-                if (playing || position > 0) {
-                    invokeAny(player, "seekTo", position)
+                invokeAny(player, "seekTo", position)
+                if (playing) {
+                    invokeAny(player, "play")
                 }
 
                 dspInstalled = true
