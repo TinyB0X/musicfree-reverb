@@ -61,6 +61,7 @@ class ReverbAudioProcessor : AudioProcessor {
     private var inputFormat: AudioProcessor.AudioFormat = AudioProcessor.AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var pendingEos = false
+    private var eosDrained = false
 
     private var sampleRate = 44100
     private var channelCount = 2
@@ -134,8 +135,9 @@ class ReverbAudioProcessor : AudioProcessor {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val size = inputBuffer.remaining()
         if (size == 0) return
-
         pendingEos = false
+        eosDrained = false
+
         val out = if (outputBuffer.capacity() < size) {
             ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
         } else {
@@ -301,6 +303,8 @@ class ReverbAudioProcessor : AudioProcessor {
 
     override fun queueEndOfStream() {
         pendingEos = true
+        // 输出缓冲可能已经被取空，此时下一次 getOutput 直接返回 EMPTY
+        eosDrained = outputBuffer.remaining() == 0
     }
 
     /**
@@ -310,17 +314,19 @@ class ReverbAudioProcessor : AudioProcessor {
      * （表现为播完当前歌就停住、循环模式失效）。
      */
     override fun getOutput(): ByteBuffer {
-        if (pendingEos && outputBuffer.remaining() == 0) {
+        if (pendingEos && (eosDrained || outputBuffer.remaining() == 0)) {
             outputBuffer = AudioProcessor.EMPTY_BUFFER
+            eosDrained = true
         }
         return outputBuffer
     }
 
-    override fun isEnded(): Boolean = pendingEos && outputBuffer === AudioProcessor.EMPTY_BUFFER
+    override fun isEnded(): Boolean = pendingEos && eosDrained
 
     override fun flush() {
         outputBuffer = AudioProcessor.EMPTY_BUFFER
         pendingEos = false
+        eosDrained = false
         engine?.reset()
         preDelayBuf.fill(0f)
         preDelayPos = 0
