@@ -4,13 +4,17 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.audio.AudioProcessor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.tanh
+import kotlin.math.abs
+import kotlin.math.min
 
 /**
  * 软件混响（Freeverb）。
  *
  * 不依赖机型的系统音效，直接在解码后的 PCM 上做运算，所以任何设备都有效果。
  * 只处理 16bit PCM；其它格式直接透传（返回 NOT_SET，ExoPlayer 会自动把本处理器摘掉）。
+ *
+ * 增益设计：干声保持 1.0（不做衰减，避免"抽吸感"），湿声最高约 0.5，
+ * 末端用带缓释的峰值限幅器兜底，鼓点不再爆音。
  */
 class ReverbAudioProcessor : AudioProcessor {
 
@@ -43,11 +47,19 @@ class ReverbAudioProcessor : AudioProcessor {
     /** 湿声平滑，避免开关瞬间爆音 */
     private var wetCurrent = 0f
 
-    /** 诊断计数：configure 调了几次、处理了多少帧 */
+    /** 峰值限幅器状态 */
+    private var limiterGain = 1f
+
+    /** 湿声 DC 阻断 */
+    private var dcX1 = 0f
+    private var dcY1 = 0f
+
+    /** 诊断计数 */
     @Volatile var configureCount: Int = 0
     @Volatile var processedFrames: Long = 0
     @Volatile var lastSampleRate: Int = 0
     @Volatile var lastChannels: Int = 0
+    @Volatile var lastPeak: Float = 0f
 
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
@@ -63,6 +75,9 @@ class ReverbAudioProcessor : AudioProcessor {
         engine = Freeverb(sampleRate)
         preDelayBuf = FloatArray((sampleRate * 0.3f).toInt().coerceAtLeast(16))
         preDelayPos = 0
+        limiterGain = 1f
+        dcX1 = 0f
+        dcY1 = 0f
         return inputAudioFormat
     }
 
@@ -89,16 +104,16 @@ class ReverbAudioProcessor : AudioProcessor {
         val active = engineRef != null && (targetWet > 0.005f || wetCurrent > 0.005f)
 
         if (!active) {
-            // 完全透传（关闭且湿声已归零）
             wetCurrent = 0f
             dst.put(src)
             inputBuffer.position(inputBuffer.limit())
         } else {
+            val frameBytes = 2 * channelCount
+            val frames = size / frameBytes
             val delaySamples = (preDelayMs.coerceIn(0f, 250f) / 1000f * sampleRate).toInt()
                 .coerceIn(0, preDelayBuf.size - 1)
             engineRef!!.setParams(roomSize, damping)
 
-            val frames = size / 2 / channelCount
             processedFrames += frames.toLong()
 
             for (i in 0 until frames) {
@@ -126,23 +141,45 @@ class ReverbAudioProcessor : AudioProcessor {
                     }
                 }
 
-                // 湿声平滑（约 25ms），避免开关/切歌时爆音
+                var wetOut = engineRef.process(fed)
+                // DC 阻断，避免低频堆积
+                val dcY = wetOut - dcX1 + 0.995f * dcY1
+                dcX1 = wetOut
+                dcY1 = dcY
+                wetOut = dcY
+
+                // 湿声平滑（约 25ms）
                 wetCurrent += (targetWet - wetCurrent) * 0.0008f
-                val dryGain = 1f - 0.45f * wetCurrent
-                val wetGain = wetCurrent * 0.85f
+                val wetGain = wetCurrent * 0.5f
 
-                val wetOut = engineRef!!.process(fed)
+                var outL = left + wetOut * wetGain
+                var outR = right + wetOut * wetGain
 
-                val outL = left * dryGain + wetOut * wetGain
-                val outR = right * dryGain + wetOut * wetGain
+                // 峰值限幅：超阈值立即压，恢复很慢
+                val peak = maxOf(abs(outL), abs(outR))
+                if (peak > lastPeak) {
+                    lastPeak = peak
+                }
+                if (peak > 0.95f) {
+                    limiterGain = min(limiterGain, 0.95f / peak)
+                } else {
+                    limiterGain += (1f - limiterGain) * 0.0002f
+                }
+                outL *= limiterGain
+                outR *= limiterGain
 
-                dst.put(clampToShort(softClip(outL)))
+                dst.put(clampToShort(outL))
                 if (channelCount >= 2) {
-                    dst.put(clampToShort(softClip(outR)))
+                    dst.put(clampToShort(outR))
                 }
                 for (c in 2 until channelCount) {
                     dst.put(0)
                 }
+            }
+
+            // 处理不完整的尾帧：补零，避免输出未初始化内存（这是爆音的隐蔽来源）
+            while (out.position() < size) {
+                out.put(0)
             }
             inputBuffer.position(inputBuffer.limit())
         }
@@ -152,11 +189,8 @@ class ReverbAudioProcessor : AudioProcessor {
         outputBuffer = out
     }
 
-    /** 软限幅，避免鼓点叠加时硬削波爆音 */
-    private fun softClip(value: Float): Float = tanh(value)
-
     private fun clampToShort(value: Float): Short {
-        val v = (value * 32767f).toInt()
+        val v = (value.coerceIn(-1f, 1f) * 32767f).toInt()
         return v.coerceIn(-32768, 32767).toShort()
     }
 
@@ -174,6 +208,10 @@ class ReverbAudioProcessor : AudioProcessor {
         engine?.reset()
         preDelayBuf.fill(0f)
         preDelayPos = 0
+        wetCurrent = 0f
+        limiterGain = 1f
+        dcX1 = 0f
+        dcY1 = 0f
     }
 
     override fun reset() {
@@ -184,8 +222,7 @@ class ReverbAudioProcessor : AudioProcessor {
 
     /**
      * Freeverb：8 个 comb + 4 个 allpass。
-     * 参数参考原始实现（44100Hz 下的采样数），这里按采样率缩放。
-     * 输入先压 0.15 做增益预留，输出再乘 0.8，保证鼓点不会顶到 0dBFS。
+     * 输入先压 0.12、comb 输出按 1/8 平均，保证与干声同量级。
      */
     private class Freeverb(sampleRate: Int) {
         private val combTuning = intArrayOf(1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617)
@@ -204,8 +241,9 @@ class ReverbAudioProcessor : AudioProcessor {
         private var damp2 = 0.8f
 
         fun setParams(roomSize: Float, damping: Float) {
-            this.feedback = (0.7f + roomSize.coerceIn(0f, 1f) * 0.28f)
-            this.damp1 = damping.coerceIn(0f, 1f) * 0.4f
+            this.feedback = (0.7f + roomSize.coerceIn(0f, 1f) * 0.27f)
+            // 阻尼范围加大：0% -> 很亮，100% -> 很闷（原来只到 0.4，人耳几乎听不出）
+            this.damp1 = 0.05f + damping.coerceIn(0f, 1f) * 0.85f
             this.damp2 = 1f - this.damp1
         }
 
@@ -221,6 +259,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 combIdx[i] = if (idx + 1 >= buf.size) 0 else idx + 1
                 acc += out
             }
+            acc /= combBuf.size.toFloat()
             for (i in apBuf.indices) {
                 val buf = apBuf[i]
                 val idx = apIdx[i]
@@ -230,7 +269,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 apIdx[i] = if (idx + 1 >= buf.size) 0 else idx + 1
                 acc = output
             }
-            return acc * OUTPUT_GAIN
+            return acc
         }
 
         fun reset() {
@@ -242,8 +281,7 @@ class ReverbAudioProcessor : AudioProcessor {
         }
 
         private companion object {
-            const val INPUT_GAIN = 0.15f
-            const val OUTPUT_GAIN = 0.8f
+            const val INPUT_GAIN = 0.12f
         }
     }
 }
