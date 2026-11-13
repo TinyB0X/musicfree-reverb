@@ -29,6 +29,14 @@ export interface IReverbParams {
     dspPre?: number;
     /** 软件 DSP：立体声宽度 0~1 */
     dspWidth?: number;
+    /** 早反射电平 dB */
+    dspErDb?: number;
+    /** 早反射空间大小 0~1 */
+    dspErSize?: number;
+    /** TC 三段滤波增益 dB */
+    dspTcLow?: number;
+    dspTcMid?: number;
+    dspTcHigh?: number;
 }
 
 export interface INativeReverbStatus {

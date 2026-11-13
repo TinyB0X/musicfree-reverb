@@ -403,6 +403,12 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         dspProcessor.diffusion = map.doubleOr("dspDiff", 0.75f).toFloat()
         dspProcessor.width = map.doubleOr("dspWidth", 0.9f).toFloat()
         dspProcessor.preDelayMs = map.doubleOr("dspPre", 40f).toFloat()
+        dspProcessor.erDb = map.doubleOr("dspErDb", -14f).toFloat()
+        dspProcessor.erSize = map.doubleOr("dspErSize", 0.8f).toFloat()
+        dspProcessor.tcLow = map.doubleOr("dspTcLow", 0f).toFloat()
+        dspProcessor.tcMid = map.doubleOr("dspTcMid", 0f).toFloat()
+        dspProcessor.tcHigh = map.doubleOr("dspTcHigh", 0f).toFloat()
+        dspProcessor.tcDirty = true
     }
 
     private fun buildStatus(): WritableMap {

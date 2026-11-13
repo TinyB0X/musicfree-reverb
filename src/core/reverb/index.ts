@@ -21,6 +21,14 @@ export interface IReverbDspParams {
     width: number;
     /** 湿声电平 dB */
     wetDb: number;
+    /** 早反射电平 dB */
+    erDb: number;
+    /** 早反射空间 0~1 */
+    erSize: number;
+    /** TC 三段滤波增益 dB（200Hz / 2kHz / 8kHz） */
+    tcLow: number;
+    tcMid: number;
+    tcHigh: number;
 }
 
 export interface IReverbAdvanced {
@@ -47,52 +55,52 @@ const presets: IReverbPreset[] = [
     {
         id: "bathroom",
         i18nKey: "panel.reverb.preset.bathroom",
-        dsp: { pdelay: 0, rt60: 3.59, hf: 2.0, diff: 0.4, width: 0.61, wetDb: -14 },
+        dsp: { pdelay: 0, rt60: 3.59, hf: 2.0, diff: 0.4, width: 0.61, wetDb: -14, erDb: -3, erSize: 0.5, tcLow: -1, tcMid: -3, tcHigh: 0 },
     },
     {
         id: "bright_chamber",
         i18nKey: "panel.reverb.preset.brightChamber",
-        dsp: { pdelay: 25, rt60: 2.4, hf: 2.0, diff: 0.8, width: 1.0, wetDb: -14 },
+        dsp: { pdelay: 25, rt60: 2.4, hf: 2.0, diff: 0.8, width: 1.0, wetDb: -14, erDb: -15, erSize: 0.8, tcLow: -2, tcMid: -2.5, tcHigh: -3 },
     },
     {
         id: "large_room",
         i18nKey: "panel.reverb.preset.largeRoom",
-        dsp: { pdelay: 25, rt60: 1.2, hf: 2.5, diff: 0.8, width: 0.83, wetDb: -11 },
+        dsp: { pdelay: 25, rt60: 1.2, hf: 2.5, diff: 0.8, width: 0.83, wetDb: -11, erDb: -14, erSize: 0.6, tcLow: -1, tcMid: -3, tcHigh: -3 },
     },
     {
         id: "large_hall",
         i18nKey: "panel.reverb.preset.largeHall",
-        dsp: { pdelay: 130, rt60: 3.5, hf: 3.5, diff: 0.8, width: 1.0, wetDb: -18 },
+        dsp: { pdelay: 130, rt60: 3.5, hf: 3.5, diff: 0.8, width: 1.0, wetDb: -18, erDb: -30, erSize: 1.0, tcLow: 2, tcMid: -6, tcHigh: -4 },
     },
     {
         id: "recital_hall",
         i18nKey: "panel.reverb.preset.recitalHall",
-        dsp: { pdelay: 100, rt60: 2.59, hf: 3.39, diff: 0.52, width: 0.89, wetDb: -15 },
+        dsp: { pdelay: 100, rt60: 2.59, hf: 3.39, diff: 0.52, width: 0.89, wetDb: -15, erDb: -12, erSize: 0.85, tcLow: -6, tcMid: 0, tcHigh: -3.5 },
     },
     {
         id: "pool",
         i18nKey: "panel.reverb.preset.pool",
-        dsp: { pdelay: 50, rt60: 4.5, hf: 2.0, diff: 0.5, width: 0.61, wetDb: -17 },
+        dsp: { pdelay: 50, rt60: 4.5, hf: 2.0, diff: 0.5, width: 0.61, wetDb: -17, erDb: -8, erSize: 1.0, tcLow: -4, tcMid: 0, tcHigh: 0 },
     },
     {
         id: "night_club",
         i18nKey: "panel.reverb.preset.nightClub",
-        dsp: { pdelay: 25, rt60: 1.5, hf: 2.79, diff: 0.8, width: 0.83, wetDb: -14 },
+        dsp: { pdelay: 25, rt60: 1.5, hf: 2.79, diff: 0.8, width: 0.83, wetDb: -14, erDb: -23, erSize: 0.7, tcLow: -1, tcMid: -3, tcHigh: -5 },
     },
     {
         id: "concrete_venue",
         i18nKey: "panel.reverb.preset.concreteVenue",
-        dsp: { pdelay: 110, rt60: 2.5, hf: 2.79, diff: 0.44, width: 1.0, wetDb: -18 },
+        dsp: { pdelay: 110, rt60: 2.5, hf: 2.79, diff: 0.44, width: 1.0, wetDb: -18, erDb: -5, erSize: 0.9, tcLow: -4, tcMid: 0, tcHigh: 0 },
     },
     {
         id: "small_plate",
         i18nKey: "panel.reverb.preset.smallPlate",
-        dsp: { pdelay: 0, rt60: 2.4, hf: 2.0, diff: 0.8, width: 0.5, wetDb: -13 },
+        dsp: { pdelay: 0, rt60: 2.4, hf: 2.0, diff: 0.8, width: 0.5, wetDb: -13, erDb: -30, erSize: 0.8, tcLow: -6, tcMid: 0, tcHigh: -3 },
     },
     {
         id: "vocal_plate",
         i18nKey: "panel.reverb.preset.vocalPlate",
-        dsp: { pdelay: 0, rt60: 1.2, hf: 1.78, diff: 0.8, width: 0.83, wetDb: -12 },
+        dsp: { pdelay: 0, rt60: 1.2, hf: 1.78, diff: 0.8, width: 0.83, wetDb: -12, erDb: -9, erSize: 0.2, tcLow: -6, tcMid: 4, tcHigh: -1 },
     },
 ];
 
@@ -163,6 +171,11 @@ export function buildReverbParams(
         dspDiff: diff,
         dspPre: pre,
         dspWidth: width,
+        dspErDb: preset.dsp.erDb,
+        dspErSize: preset.dsp.erSize,
+        dspTcLow: preset.dsp.tcLow,
+        dspTcMid: preset.dsp.tcMid,
+        dspTcHigh: preset.dsp.tcHigh,
     };
 }
 
