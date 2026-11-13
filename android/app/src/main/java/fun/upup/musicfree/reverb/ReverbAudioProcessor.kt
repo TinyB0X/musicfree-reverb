@@ -175,9 +175,15 @@ class ReverbAudioProcessor : AudioProcessor {
                 }
             }
 
-            // 不完整尾帧补零，避免输出未初始化内存
-            while (out.position() < size) {
-                out.put(0)
+            // 不完整尾帧补零，避免输出未初始化内存。
+            // 注意：数据是写进 dst（ShortBuffer 视图）的，out 自己的 position 不会前进，
+            // 所以这里必须用「已写字节数」来定位，否则会把刚写好的数据全部覆盖成 0（=静音）。
+            val writtenBytes = frames * frameBytes
+            if (writtenBytes < size) {
+                out.position(writtenBytes)
+                while (out.position() < size) {
+                    out.put(0)
+                }
             }
             inputBuffer.position(inputBuffer.limit())
 
