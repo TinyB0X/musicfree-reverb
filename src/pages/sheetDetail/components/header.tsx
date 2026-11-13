@@ -17,7 +17,7 @@ export default function Header() {
     const { t } = useI18N();
 
     return (
-        <View style={{ backgroundColor: colors.card }}>
+        <View style={{ backgroundColor: "transparent" }}>
             <View style={style.content}>
                 <FastImage
                     style={style.coverImg}
@@ -43,16 +43,16 @@ export default function Header() {
 const style = StyleSheet.create({
     content: {
         width: "100%",
-        height: rpx(300),
-        paddingHorizontal: rpx(24),
+        height: rpx(340),
+        paddingHorizontal: rpx(28),
         flexDirection: "row",
         justifyContent: "flex-start",
         alignItems: "center",
     },
     coverImg: {
-        width: rpx(210),
-        height: rpx(210),
-        borderRadius: rpx(24),
+        width: rpx(250),
+        height: rpx(250),
+        borderRadius: rpx(20),
     },
     details: {
         paddingHorizontal: rpx(36),

@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import rpx from "@/utils/rpx";
 import { iconSizeConst } from "@/constants/uiConst";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
@@ -34,7 +34,7 @@ export default function (props: IProps) {
     return (
         <View style={style.topWrapper}>
             <Pressable
-                style={style.playAll}
+                style={[style.playAll, { backgroundColor: colors.primary }]}
                 onPress={() => {
                     if (musicList) {
                         let defaultPlayMusic = musicList[0];
@@ -57,9 +57,9 @@ export default function (props: IProps) {
                     name="play-circle"
                     style={style.playAllIcon}
                     size={iconSizeConst.normal}
-                    color={colors.text}
+                    color="#ffffff"
                 />
-                <ThemeText fontWeight="bold">{t("playAllBar.title")}</ThemeText>
+                <Text style={style.playAllText}>{t("playAllBar.title")}</Text>
             </Pressable>
             {canStar && musicSheet ? (
                 <IconButton
@@ -119,9 +119,18 @@ const style = StyleSheet.create({
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
+        height: rpx(68),
+        borderRadius: rpx(34),
+        paddingHorizontal: rpx(26),
     },
     playAllIcon: {
         marginRight: rpx(12),
+    },
+    playAllText: {
+        color: "#ffffff",
+        fontSize: rpx(28),
+        fontWeight: "600",
+        includeFontPadding: false,
     },
     optionButton: {
         marginLeft: rpx(36),
