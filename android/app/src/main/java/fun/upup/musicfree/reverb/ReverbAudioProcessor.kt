@@ -235,7 +235,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 tcHighF?.let { effectL = it.process(effectL); effectR = it.processR(effectR) }
 
                 // 湿声越大，干声自动让一点电平，避免「干 + 湿」叠加后削顶产生爆音
-                val duck = 1f / (1f + wetLin * 0.8f + dbToLinear(erDb) * 0.3f)
+                val duck = 1f / (1f + wetLin * 0.45f + dbToLinear(erDb) * 0.25f)
                 val sumL = knee(left * duck + effectL)
                 val sumR = knee(right * duck + effectR)
 
@@ -511,7 +511,7 @@ class ReverbAudioProcessor : AudioProcessor {
         private val apIdxL = IntArray(allpassTuning.size)
         private val apIdxR = IntArray(allpassTuning.size)
 
-        private val INPUT_NORMALIZE = 0.6f
+        private val INPUT_NORMALIZE = 1.0f
         private var damp1 = 0.3f
         private var damp2 = 0.7f
         private var apCoef = 0.5f

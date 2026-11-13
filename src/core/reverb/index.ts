@@ -130,7 +130,7 @@ export function buildReverbParams(
 
     // 预设里是网易云的原始电平（-17~-25dB），这里整体 +8dB 并随强度微调，
     // 保证在手机上能明显听出来（网易云还有早反射/多段滤波加持）
-    let wetDb = clamp(preset.dsp.wetDb + 8 - (1 - ratio) * 12, -60, -3);
+    let wetDb = clamp(preset.dsp.wetDb + 10 - (1 - ratio) * 12, -60, -2);
     let rt60 = preset.dsp.rt60;
     let hf = preset.dsp.hf;
     let pre = preset.dsp.pdelay;
