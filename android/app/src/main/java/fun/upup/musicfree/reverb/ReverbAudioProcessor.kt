@@ -4,6 +4,7 @@ import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.audio.AudioProcessor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.tanh
 
 /**
  * 软件混响（Freeverb）。
@@ -29,14 +30,18 @@ class ReverbAudioProcessor : AudioProcessor {
     private var inputFormat: AudioProcessor.AudioFormat = AudioProcessor.AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var pendingEos = false
-    private var bypassed = true
 
     private var sampleRate = 44100
     private var channelCount = 2
 
     private var engine: Freeverb? = null
-    private var preDelay: FloatArray = FloatArray(0)
+
+    /** 预延迟缓冲（固定 300ms，运行时只改读取偏移，保证参数即时生效） */
+    private var preDelayBuf = FloatArray(0)
     private var preDelayPos = 0
+
+    /** 湿声平滑，避免开关瞬间爆音 */
+    private var wetCurrent = 0f
 
     /** 诊断计数：configure 调了几次、处理了多少帧 */
     @Volatile var configureCount: Int = 0
@@ -56,7 +61,7 @@ class ReverbAudioProcessor : AudioProcessor {
         sampleRate = inputAudioFormat.sampleRate.coerceAtLeast(8000)
         channelCount = inputAudioFormat.channelCount.coerceAtLeast(1)
         engine = Freeverb(sampleRate)
-        preDelay = FloatArray(((preDelayMs / 1000f) * sampleRate).toInt().coerceIn(0, sampleRate / 2))
+        preDelayBuf = FloatArray((sampleRate * 0.3f).toInt().coerceAtLeast(16))
         preDelayPos = 0
         return inputAudioFormat
     }
@@ -79,41 +84,61 @@ class ReverbAudioProcessor : AudioProcessor {
         val src = inputBuffer.order(ByteOrder.nativeOrder()).asShortBuffer()
         val dst = out.order(ByteOrder.nativeOrder()).asShortBuffer()
 
-        val active = enabled && wet > 0.001f
         val engineRef = engine
-        if (!active || engineRef == null) {
-            // 透传
+        val targetWet = if (enabled) wet.coerceIn(0f, 1f) else 0f
+        val active = engineRef != null && (targetWet > 0.005f || wetCurrent > 0.005f)
+
+        if (!active) {
+            // 完全透传（关闭且湿声已归零）
+            wetCurrent = 0f
             dst.put(src)
             inputBuffer.position(inputBuffer.limit())
         } else {
-            engineRef.setParams(wet, roomSize, damping, width)
+            val delaySamples = (preDelayMs.coerceIn(0f, 250f) / 1000f * sampleRate).toInt()
+                .coerceIn(0, preDelayBuf.size - 1)
+            engineRef.setParams(roomSize, damping)
+
             val frames = size / 2 / channelCount
             processedFrames += frames.toLong()
+
             for (i in 0 until frames) {
-                var left = src.get().toInt() / 32768f
-                var right = if (channelCount >= 2) src.get().toInt() / 32768f else left
-                // 跳过多余声道（5.1 等）
+                val left = src.get().toInt() / 32768f
+                val right = if (channelCount >= 2) src.get().toInt() / 32768f else left
                 for (c in 2 until channelCount) {
                     src.get()
                 }
 
-                // 预延迟
-                if (preDelay.isNotEmpty()) {
-                    val delayed = preDelay[preDelayPos]
-                    preDelay[preDelayPos] = (left + right) * 0.5f
-                    preDelayPos = (preDelayPos + 1) % preDelay.size
-                    left += 0f * delayed
+                // 预延迟（可运行时调整）
+                val mono = (left + right) * 0.5f
+                var fed = mono
+                if (preDelayBuf.isNotEmpty()) {
+                    if (delaySamples > 0) {
+                        var readPos = preDelayPos - delaySamples
+                        if (readPos < 0) {
+                            readPos += preDelayBuf.size
+                        }
+                        fed = preDelayBuf[readPos]
+                    }
+                    preDelayBuf[preDelayPos] = mono
+                    preDelayPos++
+                    if (preDelayPos >= preDelayBuf.size) {
+                        preDelayPos = 0
+                    }
                 }
 
-                val wetOut = engineRef.process((left + right) * 0.5f)
-                val dryL = left
-                val dryR = right
-                val outL = dryL * (1f - wet) + wetOut * wet * 1.2f
-                val outR = dryR * (1f - wet) + wetOut * wet * 1.2f
+                // 湿声平滑（约 25ms），避免开关/切歌时爆音
+                wetCurrent += (targetWet - wetCurrent) * 0.0008f
+                val dryGain = 1f - 0.45f * wetCurrent
+                val wetGain = wetCurrent * 0.85f
 
-                dst.put(clampToShort(outL))
+                val wetOut = engineRef.process(fed)
+
+                val outL = left * dryGain + wetOut * wetGain
+                val outR = right * dryGain + wetOut * wetGain
+
+                dst.put(clampToShort(softClip(outL)))
                 if (channelCount >= 2) {
-                    dst.put(clampToShort(outR))
+                    dst.put(clampToShort(softClip(outR)))
                 }
                 for (c in 2 until channelCount) {
                     dst.put(0)
@@ -126,6 +151,9 @@ class ReverbAudioProcessor : AudioProcessor {
         out.limit(size)
         outputBuffer = out
     }
+
+    /** 软限幅，避免鼓点叠加时硬削波爆音 */
+    private fun softClip(value: Float): Float = tanh(value)
 
     private fun clampToShort(value: Float): Short {
         val v = (value * 32767f).toInt()
@@ -144,7 +172,7 @@ class ReverbAudioProcessor : AudioProcessor {
         outputBuffer = AudioProcessor.EMPTY_BUFFER
         pendingEos = false
         engine?.reset()
-        preDelay.fill(0f)
+        preDelayBuf.fill(0f)
         preDelayPos = 0
     }
 
@@ -152,12 +180,12 @@ class ReverbAudioProcessor : AudioProcessor {
         flush()
         inputFormat = AudioProcessor.AudioFormat.NOT_SET
         engine = null
-        bypassed = true
     }
 
     /**
      * Freeverb：8 个 comb + 4 个 allpass。
      * 参数参考原始实现（44100Hz 下的采样数），这里按采样率缩放。
+     * 输入先压 0.15 做增益预留，输出再乘 0.8，保证鼓点不会顶到 0dBFS。
      */
     private class Freeverb(sampleRate: Int) {
         private val combTuning = intArrayOf(1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617)
@@ -171,28 +199,25 @@ class ReverbAudioProcessor : AudioProcessor {
         private val apBuf = Array(allpassTuning.size) { FloatArray((allpassTuning[it] * scale).toInt().coerceAtLeast(8)) }
         private val apIdx = IntArray(allpassTuning.size)
 
-        private var wet = 0.3f
         private var feedback = 0.84f
         private var damp1 = 0.2f
         private var damp2 = 0.8f
-        private var width = 1f
 
-        fun setParams(wet: Float, roomSize: Float, damping: Float, width: Float) {
-            this.wet = wet.coerceIn(0f, 1f)
+        fun setParams(roomSize: Float, damping: Float) {
             this.feedback = (0.7f + roomSize.coerceIn(0f, 1f) * 0.28f)
             this.damp1 = damping.coerceIn(0f, 1f) * 0.4f
             this.damp2 = 1f - this.damp1
-            this.width = width.coerceIn(0f, 1f)
         }
 
         fun process(input: Float): Float {
+            val x = input * INPUT_GAIN
             var acc = 0f
             for (i in combBuf.indices) {
                 val buf = combBuf[i]
                 val idx = combIdx[i]
                 val out = buf[idx]
                 combStore[i] = out * damp2 + combStore[i] * damp1
-                buf[idx] = input + combStore[i] * feedback
+                buf[idx] = x + combStore[i] * feedback
                 combIdx[i] = if (idx + 1 >= buf.size) 0 else idx + 1
                 acc += out
             }
@@ -205,7 +230,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 apIdx[i] = if (idx + 1 >= buf.size) 0 else idx + 1
                 acc = output
             }
-            return acc * wet
+            return acc * OUTPUT_GAIN
         }
 
         fun reset() {
@@ -214,6 +239,11 @@ class ReverbAudioProcessor : AudioProcessor {
             combIdx.fill(0)
             apIdx.fill(0)
             combStore.fill(0f)
+        }
+
+        private companion object {
+            const val INPUT_GAIN = 0.15f
+            const val OUTPUT_GAIN = 0.8f
         }
     }
 }

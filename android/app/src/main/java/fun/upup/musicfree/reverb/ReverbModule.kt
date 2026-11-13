@@ -134,6 +134,9 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                     applyDspParams(params)
                 }
                 dspProcessor.enabled = enabled
+                if (!enabled) {
+                    dspProcessor.wet = 0f
+                }
 
                 // 优先走软件 DSP（不依赖机型）
                 val dspOk = ensureDsp()
@@ -157,6 +160,9 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         runOnMain {
             try {
                 targetEnabled = false
+                // 关键：必须同时关掉 DSP，否则开关不起作用
+                dspProcessor.enabled = false
+                dspProcessor.wet = 0f
                 releaseEffect()
                 promise.resolve(buildStatus())
             } catch (t: Throwable) {
