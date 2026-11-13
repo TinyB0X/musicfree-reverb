@@ -275,7 +275,15 @@ export default function ReverbPanel() {
                             {i18n.t("panel.reverb.tip")}
                         </ThemeText>
 
-                        {enabled && status?.supported ? (
+                        {enabled && status?.dspInstalled ? (
+                            <ThemeText
+                                style={styles.unsupported}
+                                fontSize="description"
+                                fontColor="textSecondary">
+                                {i18n.t("panel.reverb.status.dsp")}
+                            </ThemeText>
+                        ) : null}
+                        {enabled && status?.supported && !status?.dspInstalled ? (
                             <ThemeText
                                 style={styles.unsupported}
                                 fontSize="description"
@@ -285,6 +293,16 @@ export default function ReverbPanel() {
                                     : status.effectKind === "environmental"
                                         ? i18n.t("panel.reverb.status.env")
                                         : i18n.t("panel.reverb.status.preset")}
+                            </ThemeText>
+                        ) : null}
+                        {!status?.dspInstalled && status?.dspError && enabled ? (
+                            <ThemeText
+                                style={styles.unsupported}
+                                fontSize="description"
+                                color={colors.danger}>
+                                {i18n.t("panel.reverb.status.dspFailed", {
+                                    reason: status.dspError,
+                                })}
                             </ThemeText>
                         ) : null}
                         {enabled && !status?.supported && status?.gaveUp ? (

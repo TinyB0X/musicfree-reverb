@@ -183,6 +183,24 @@ export function buildReverbParams(
         params.reflectionsDelay = pre;
         params.reverbDelay = Math.min(100, pre + 10);
     }
+
+    // 软件 DSP 参数（不依赖机型，优先使用）
+    const decay = params.decayTime;
+    params.dspWet =
+        typeof advanced?.wet === "number"
+            ? clamp(advanced.wet, 0, 100) / 100
+            : clamp(ratio, 0, 1) * 0.9;
+    params.dspRoom = clamp((decay - 300) / 5000, 0.2, 0.95);
+    params.dspDamp =
+        typeof advanced?.damping === "number"
+            ? clamp(advanced.damping, 0, 100) / 100
+            : 0.35;
+    params.dspPre =
+        typeof advanced?.preDelay === "number"
+            ? clamp(advanced.preDelay, 0, 200)
+            : 20;
+    params.dspWidth = 1;
+
     return params;
 }
 
@@ -241,6 +259,17 @@ export async function setEqTest(enabled: boolean) {
             await NativeReverb?.testEqualizer(false);
         }
         scheduleStatusRefresh();
+    } catch {}
+}
+
+/** App 启动时预先挂载 DSP（避免播放中途替换音频输出造成卡顿） */
+export async function prepareDsp() {
+    if (!NativeReverb) {
+        return;
+    }
+    try {
+        const status = await NativeReverb.prepareDsp();
+        statusStore.setValue(status);
     } catch {}
 }
 

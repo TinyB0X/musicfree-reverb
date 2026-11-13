@@ -514,6 +514,8 @@ export interface ILanguageData {
     "panel.reverb.unsupported": string; // 设备不支持
     "panel.reverb.status.env": string; // 参数化混响已生效
     "panel.reverb.status.noControl": string; // 系统未接管
+    "panel.reverb.status.dsp": string; // 软件混响已生效
+    "panel.reverb.status.dspFailed": string; // DSP 挂载失败
     "panel.reverb.advanced": string; // 高级参数
     "panel.reverb.advanced.reset": string; // 恢复预设
     "panel.reverb.advanced.wet": string; // 湿度

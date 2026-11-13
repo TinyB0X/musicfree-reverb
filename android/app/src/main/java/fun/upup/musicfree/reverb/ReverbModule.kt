@@ -9,6 +9,9 @@ import android.media.audiofx.AudioEffect
 import android.media.audiofx.EnvironmentalReverb
 import android.media.audiofx.Equalizer
 import android.media.audiofx.PresetReverb
+import com.google.android.exoplayer2.audio.AudioSink
+import com.google.android.exoplayer2.audio.DefaultAudioSink
+import com.google.android.exoplayer2.audio.MediaCodecAudioRenderer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -75,6 +78,11 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     private var eqEffect: Equalizer? = null
     private var eqTesting = false
 
+    /** 软件混响 DSP */
+    private val dspProcessor = ReverbAudioProcessor()
+    private var dspInstalled = false
+    private var dspError: String? = null
+
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             binding = false
@@ -122,7 +130,16 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                 gaveUp = false
                 lastError = null
 
-                if (enabled) {
+                if (params != null) {
+                    applyDspParams(params)
+                }
+                dspProcessor.enabled = enabled
+
+                // 优先走软件 DSP（不依赖机型）
+                val dspOk = ensureDsp()
+                if (dspOk) {
+                    releaseEffect()
+                } else if (enabled) {
                     applyInternal()
                 } else {
                     releaseEffect()
@@ -219,6 +236,84 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /** 预先挂载 DSP 音频处理器（最好在开始播放前调用，避免中途换 sink 卡顿） */
+    @ReactMethod
+    fun prepareDsp(promise: Promise) {
+        runOnMain {
+            try {
+                ensureDsp()
+                promise.resolve(buildStatus())
+            } catch (t: Throwable) {
+                dspError = t.message ?: t.javaClass.simpleName
+                promise.resolve(buildStatus())
+            }
+        }
+    }
+
+    /** 把软件混响挂到 ExoPlayer 的音频渲染器上（替换 AudioSink） */
+    private fun ensureDsp(): Boolean {
+        if (dspInstalled) {
+            return true
+        }
+        val player = findExoPlayer() ?: return false
+        return try {
+            val count = player.javaClass.getMethod("getRendererCount").invoke(player) as Int
+            for (i in 0 until count) {
+                val renderer = player.javaClass
+                    .getMethod("getRenderer", Int::class.javaPrimitiveType)
+                    .invoke(player, i) ?: continue
+                if (renderer !is MediaCodecAudioRenderer) {
+                    continue
+                }
+
+                val field = MediaCodecAudioRenderer::class.java.getDeclaredField("audioSink")
+                field.isAccessible = true
+                val oldSink = field.get(renderer) as? AudioSink
+
+                val newSink = DefaultAudioSink.Builder(reactContext)
+                    .setAudioProcessors(arrayOf<com.google.android.exoplayer2.audio.AudioProcessor>(dspProcessor))
+                    .build()
+
+                // 复用渲染器自己的 AudioSink.Listener
+                val listener = buildSinkListener(renderer)
+                if (listener != null) {
+                    newSink.setListener(listener)
+                }
+
+                field.set(renderer, newSink)
+                try {
+                    oldSink?.release()
+                } catch (_: Throwable) {
+                }
+
+                dspInstalled = true
+                dspError = null
+                Log.i(TAG, "DSP 已挂载到音频渲染器 #" + i)
+                return true
+            }
+            dspError = "未找到音频渲染器"
+            false
+        } catch (t: Throwable) {
+            dspError = (t.message ?: t.javaClass.simpleName)
+            Log.w(TAG, "挂载 DSP 失败", t)
+            false
+        }
+    }
+
+    private fun buildSinkListener(renderer: MediaCodecAudioRenderer): AudioSink.Listener? {
+        return try {
+            val cls = Class.forName(
+                "com.google.android.exoplayer2.audio.MediaCodecAudioRenderer\$AudioSinkListener"
+            )
+            val ctor = cls.getDeclaredConstructor(MediaCodecAudioRenderer::class.java)
+            ctor.isAccessible = true
+            ctor.newInstance(renderer) as AudioSink.Listener
+        } catch (t: Throwable) {
+            Log.w(TAG, "构建 AudioSinkListener 失败", t)
+            null
+        }
+    }
+
     @ReactMethod
     fun getStatus(promise: Promise) {
         runOnMain {
@@ -239,10 +334,20 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    private fun applyDspParams(map: ReadableMap) {
+        dspProcessor.wet = map.doubleOr("dspWet", 0.45f).toFloat()
+        dspProcessor.roomSize = map.doubleOr("dspRoom", 0.6f).toFloat()
+        dspProcessor.damping = map.doubleOr("dspDamp", 0.35f).toFloat()
+        dspProcessor.preDelayMs = map.doubleOr("dspPre", 20f).toFloat()
+        dspProcessor.width = map.doubleOr("dspWidth", 1f).toFloat()
+    }
+
     private fun buildStatus(): WritableMap {
         val status = Arguments.createMap()
         val effects = queryDeviceEffects()
-        status.putBoolean("supported", effect != null)
+        status.putBoolean("dspInstalled", dspInstalled)
+        status.putString("dspError", dspError)
+        status.putBoolean("supported", dspInstalled || effect != null)
         status.putBoolean("enabled", targetEnabled && effect != null)
         status.putInt("sessionId", attachedSessionId)
         status.putString("effectKind", effectKind)
@@ -569,6 +674,14 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
             diffusion = map.intOr("diffusion", 800),
             density = map.intOr("density", 800),
         )
+    }
+
+    private fun ReadableMap.doubleOr(key: String, defaultValue: Float): Double {
+        return try {
+            if (hasKey(key) && !isNull(key)) getDouble(key) else defaultValue.toDouble()
+        } catch (t: Throwable) {
+            defaultValue.toDouble()
+        }
     }
 
     private fun ReadableMap.intOr(key: String, defaultValue: Int): Int {

@@ -15,6 +15,7 @@ import Theme from "@/core/theme";
 import TrackPlayer from "@/core/trackPlayer";
 import {
     forceReattachReverb,
+    prepareDsp,
     reapplyReverb,
     restoreReverb,
 } from "@/core/reverb";
@@ -201,6 +202,8 @@ export async function initTrackPlayer(logger?: IPerfLogger) {
     trace("播放列表初始化完成");
     logger?.mark("播放列表初始化完成");
 
+    // 先挂 DSP 音频处理器（此时尚未开始播放，替换 sink 不会卡顿）
+    prepareDsp().catch(() => {});
     // 恢复混响设置：原生侧要等播放器创建后才能挂上 AudioEffect
     restoreReverb().catch(() => {});
     // 切歌时重新确认一次（audioSessionId 可能在开始播放后才生成）

@@ -424,6 +424,8 @@
     "panel.reverb.status.env": "Parametric reverb is active",
     "panel.reverb.status.noControl": "Effect mounted, but the system is not applying it (often Bluetooth output or vendor limits)",
     "panel.reverb.status.preset": "Preset reverb (parametric reverb unsupported on this device)",
+    "panel.reverb.status.dsp": "Software reverb active (device independent)",
+    "panel.reverb.status.dspFailed": "DSP mount failed: {reason}",
     "panel.reverb.advanced": "Advanced",
     "panel.reverb.advanced.reset": "Reset to preset",
     "panel.reverb.advanced.wet": "Wet",

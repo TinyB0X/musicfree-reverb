@@ -424,6 +424,8 @@
     "panel.reverb.status.env": "參數化混響已生效",
     "panel.reverb.status.noControl": "效果器已掛載，但系統未接管（多為藍牙輸出或機型限制）",
     "panel.reverb.status.preset": "預設混響（此機型不支援參數化混響）",
+    "panel.reverb.status.dsp": "軟體混響已生效（不依賴機型）",
+    "panel.reverb.status.dspFailed": "DSP 掛載失敗：{reason}",
     "panel.reverb.advanced": "進階參數",
     "panel.reverb.advanced.reset": "恢復預設",
     "panel.reverb.advanced.wet": "濕度",

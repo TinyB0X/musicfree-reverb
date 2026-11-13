@@ -17,6 +17,16 @@ export interface IReverbParams {
     reverbDelay: number;
     diffusion: number;
     density: number;
+    /** 软件 DSP：湿声比例 0~1 */
+    dspWet?: number;
+    /** 软件 DSP：房间大小 0~1 */
+    dspRoom?: number;
+    /** 软件 DSP：阻尼 0~1 */
+    dspDamp?: number;
+    /** 软件 DSP：预延迟 ms */
+    dspPre?: number;
+    /** 软件 DSP：立体声宽度 0~1 */
+    dspWidth?: number;
 }
 
 export interface INativeReverbStatus {
@@ -44,6 +54,10 @@ export interface INativeReverbStatus {
     eqHasControl: boolean;
     /** 播放器当前真实的 audioSessionId */
     liveSessionId: number;
+    /** 软件 DSP 是否挂载成功 */
+    dspInstalled: boolean;
+    /** 软件 DSP 挂载失败原因 */
+    dspError: string | null;
 }
 
 export interface INativeReverb extends NativeModule {
@@ -56,6 +70,7 @@ export interface INativeReverb extends NativeModule {
     disable: () => Promise<INativeReverbStatus>;
     getStatus: () => Promise<INativeReverbStatus>;
     forceReattach: () => Promise<INativeReverbStatus>;
+    prepareDsp: () => Promise<INativeReverbStatus>;
     testEqualizer: (enabled: boolean) => Promise<INativeReverbStatus>;
 }
 

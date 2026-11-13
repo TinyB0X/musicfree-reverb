@@ -184,6 +184,9 @@ dependencies {
 
     // !! Add lines
     implementation project(':react-native-fs')
+    // 混响 DSP：需要和 react-native-track-player 内部一致的 ExoPlayer 版本
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.0'
+    implementation 'com.google.android.exoplayer:exoplayer-common:2.19.0'
     implementation 'com.facebook.fresco:animated-gif:2.5.0'
     // https://mvnrepository.com/artifact/net.jthink/jaudiotagger
     implementation 'net.jthink:jaudiotagger:2.2.5'

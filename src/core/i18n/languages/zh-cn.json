@@ -424,6 +424,8 @@
     "panel.reverb.status.env": "参数化混响已生效",
     "panel.reverb.status.noControl": "效果器已挂载，但系统未接管（多为蓝牙输出或机型限制）",
     "panel.reverb.status.preset": "预设混响（该机型不支持参数化混响）",
+    "panel.reverb.status.dsp": "软件混响已生效（不依赖机型）",
+    "panel.reverb.status.dspFailed": "DSP 挂载失败：{reason}",
     "panel.reverb.advanced": "高级参数",
     "panel.reverb.advanced.reset": "恢复预设",
     "panel.reverb.advanced.wet": "湿度",
