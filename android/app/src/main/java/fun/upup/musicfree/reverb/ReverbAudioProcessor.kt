@@ -59,6 +59,7 @@ class ReverbAudioProcessor : AudioProcessor {
 
     private var rmsInAcc = 0.0
     private var rmsOutAcc = 0.0
+    private var rmsWetAcc = 0.0
     private var rmsFrames = 0L
 
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
@@ -155,7 +156,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 wetCurrent += (targetWet - wetCurrent) * 0.0008f
                 // 湿声增益：实测 Freeverb 输出约为输入的 0.37，这里乘 1.2 让满强度时
                 // 湿声大约等于干声的 45%（-7dB），听感明显
-                var wetSig = wetOut * wetCurrent * 1.2f
+                var wetSig = wetOut * wetCurrent * 1.8f
                 if (!wetSig.isFinite()) {
                     wetSig = 0f
                 }
@@ -167,6 +168,7 @@ class ReverbAudioProcessor : AudioProcessor {
 
                 rmsInAcc += (mono * mono).toDouble()
                 rmsOutAcc += ((sumL * sumL + sumR * sumR) * 0.5).toDouble()
+                rmsWetAcc += (wetSig * wetSig).toDouble()
 
                 dst.put(clampToShort(sumL))
                 if (channelCount >= 2) {
@@ -195,8 +197,9 @@ class ReverbAudioProcessor : AudioProcessor {
                 val outRms = sqrt(rmsOutAcc / rmsFrames).toFloat()
                 lastInRms = inRms
                 lastOutRms = outRms
-                Log.i(TAG, "DSP inRMS=" + inRms + " outRMS=" + outRms + " wet=" + wetCurrent +
-                        " frames=" + processedFrames + " bypass=" + faultBypass)
+                val wetRms = sqrt(rmsWetAcc / rmsFrames).toFloat()
+                Log.i(TAG, "DSP inRMS=" + inRms + " outRMS=" + outRms + " wetRMS=" + wetRms +
+                        " wet=" + wetCurrent + " frames=" + processedFrames + " bypass=" + faultBypass)
                 if (inRms > 0.002f && outRms < inRms * 0.05f) {
                     silentWindows++
                     if (silentWindows >= 3) {
@@ -208,6 +211,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 }
                 rmsInAcc = 0.0
                 rmsOutAcc = 0.0
+                rmsWetAcc = 0.0
                 rmsFrames = 0
             }
         }
@@ -251,6 +255,7 @@ class ReverbAudioProcessor : AudioProcessor {
         dcY1 = 0f
         rmsInAcc = 0.0
         rmsOutAcc = 0.0
+        rmsWetAcc = 0.0
         rmsFrames = 0
     }
 
