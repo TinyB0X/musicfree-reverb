@@ -82,6 +82,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     private val dspProcessor = ReverbAudioProcessor()
     private var dspInstalled = false
     private var dspError: String? = null
+    private var dspRetryCount = 0
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -138,14 +139,11 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                     dspProcessor.wet = 0f
                 }
 
-                // 优先走软件 DSP（不依赖机型）
+                // 只走软件 DSP；系统效果器在这类机型上是空操作，回退反而有害
                 val dspOk = ensureDsp()
-                if (dspOk) {
-                    releaseEffect()
-                } else if (enabled) {
-                    applyInternal()
-                } else {
-                    releaseEffect()
+                releaseEffect()
+                if (!dspOk) {
+                    scheduleDspRetry()
                 }
                 promise.resolve(buildStatus())
             } catch (t: Throwable) {
@@ -256,12 +254,31 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /** DSP 挂载失败时重试（播放器/服务可能还没就绪） */
+    private fun scheduleDspRetry() {
+        if (dspInstalled || dspRetryCount >= MAX_RETRY_COUNT) {
+            return
+        }
+        dspRetryCount++
+        mainHandler.postDelayed({
+            if (ensureDsp() && targetEnabled) {
+                Log.i(TAG, "DSP 重试挂载成功")
+            } else {
+                scheduleDspRetry()
+            }
+        }, RETRY_INTERVAL_MS)
+    }
+
     /** 把软件混响挂到 ExoPlayer 的音频渲染器上（替换 AudioSink） */
     private fun ensureDsp(): Boolean {
         if (dspInstalled) {
             return true
         }
-        val player = findExoPlayer() ?: return false
+        val player = findExoPlayer()
+        if (player == null) {
+            dspError = "播放器未就绪"
+            return false
+        }
         return try {
             val count = (invokeAny(player, "getRendererCount") as? Int) ?: 0
             Log.i(TAG, "渲染器数量 = " + count)
