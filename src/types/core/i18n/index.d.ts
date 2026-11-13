@@ -62,6 +62,9 @@ export interface ILanguageData {
     "home.recommendSheet": string; // 推荐歌单
     "home.topList": string; // 榜单
     "home.playHistory": string; // 播放历史
+    "home.recentPlay": string;
+    "home.recentPlayEmpty": string;
+    "home.downloading": string;
     "home.localMusic": string; // 本地音乐
     "home.openSidebar.a11y": string; // 打开侧边栏
     "home.myPlaylists": string; // 我的歌单
