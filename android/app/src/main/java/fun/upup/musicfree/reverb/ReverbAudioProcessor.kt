@@ -96,7 +96,7 @@ class ReverbAudioProcessor : AudioProcessor {
         } else {
             val delaySamples = (preDelayMs.coerceIn(0f, 250f) / 1000f * sampleRate).toInt()
                 .coerceIn(0, preDelayBuf.size - 1)
-            engineRef.setParams(roomSize, damping)
+            engineRef!!.setParams(roomSize, damping)
 
             val frames = size / 2 / channelCount
             processedFrames += frames.toLong()
@@ -131,7 +131,7 @@ class ReverbAudioProcessor : AudioProcessor {
                 val dryGain = 1f - 0.45f * wetCurrent
                 val wetGain = wetCurrent * 0.85f
 
-                val wetOut = engineRef.process(fed)
+                val wetOut = engineRef!!.process(fed)
 
                 val outL = left * dryGain + wetOut * wetGain
                 val outR = right * dryGain + wetOut * wetGain
