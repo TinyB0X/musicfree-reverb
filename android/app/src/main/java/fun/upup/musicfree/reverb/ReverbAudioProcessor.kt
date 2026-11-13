@@ -121,7 +121,10 @@ class ReverbAudioProcessor : AudioProcessor {
 
         val engineRef = engine
         val targetWet = if (enabled && !faultBypass) wetDb.coerceIn(-60f, 0f) else -60f
-        val active = engineRef != null && (targetWet > -59f || wetCurrent > -59f)
+        val eqOn = eqGains.any { kotlin.math.abs(it) > 0.01f }
+        // 均衡器和混响互相独立：只开 EQ 时也要处理
+        val active = engineRef != null &&
+                (targetWet > -59f || wetCurrent > -59f || eqOn)
 
         if (!active) {
             wetCurrent = -60f
