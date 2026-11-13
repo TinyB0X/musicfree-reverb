@@ -157,7 +157,7 @@ function HomeDrawer(props: any) {
                         <ListItem.ListItemText
                             position="right"
                             fontSize="subTitle">
-                            {`${t("sidebar.currentVersion")}${deviceInfoModule.getVersion()}`}
+                            {deviceInfoModule.getVersion()}
                         </ListItem.ListItemText>
                     </ListItem>
                     <ListItem
