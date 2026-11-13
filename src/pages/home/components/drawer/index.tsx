@@ -38,16 +38,17 @@ function HomeDrawer(props: any) {
 
     const basicSetting: ISettingOptions[] = [
         {
-            icon: "cog-8-tooth",
-            title: t("sidebar.basicSettings"),
-            onPress: () => {
-                navigateToSetting("basic");
-            },
-        }, {
             icon: "javascript",
             title: t("sidebar.pluginManagement"),
             onPress: () => {
                 navigateToSetting("plugin");
+            },
+        },
+        {
+            icon: "cog-8-tooth",
+            title: t("sidebar.basicSettings"),
+            onPress: () => {
+                navigateToSetting("basic");
             },
         },
         {
@@ -90,14 +91,8 @@ function HomeDrawer(props: any) {
                     </ThemeText>
                     {/* <IconButton icon={'qrcode-scan'} size={rpx(36)} /> */}
                 </View>
+
                 <View style={style.card}>
-                    <ListItem withHorizontalPadding heightType="smallest">
-                        <ListItem.ListItemText
-                            fontSize="subTitle"
-                            fontWeight="bold">
-                            {t("common.setting")}
-                        </ListItem.ListItemText>
-                    </ListItem>
                     {basicSetting.map((item, index) => (
                         <ListItem
                             withHorizontalPadding
@@ -111,14 +106,8 @@ function HomeDrawer(props: any) {
                         </ListItem>
                     ))}
                 </View>
+
                 <View style={style.card}>
-                    <ListItem withHorizontalPadding heightType="smallest">
-                        <ListItem.ListItemText
-                            fontSize="subTitle"
-                            fontWeight="bold">
-                            {t("common.other")}
-                        </ListItem.ListItemText>
-                    </ListItem>
                     <CountDownItem />
                     {otherSetting.map((item, index) => (
                         <ListItem
@@ -152,15 +141,8 @@ function HomeDrawer(props: any) {
                     </ListItem>
                 </View>
 
-                <View style={style.card}>
-                    <ListItem withHorizontalPadding heightType="smallest">
-                        <ListItem.ListItemText
-                            fontSize="subTitle"
-                            fontWeight="bold">
-                            {t("common.software")}
-                        </ListItem.ListItemText>
-                    </ListItem>
 
+                <View style={style.card}>
                     <ListItem
                         withHorizontalPadding
                         key={"update"}
@@ -188,13 +170,15 @@ function HomeDrawer(props: any) {
                             icon={"information-circle"}
                             width={rpx(48)}
                         />
-                        <ListItem.Content
-                            title={`${t("common.about")} ${deviceInfoModule.getApplicationName()}`}
-                        />
+                        <ListItem.Content title={t("common.about")} />
+                        <ListItem.ListItemText
+                            position="right"
+                            fontSize="subTitle">
+                            {deviceInfoModule.getVersion()}
+                        </ListItem.ListItemText>
                     </ListItem>
                 </View>
 
-                <Divider />
                 <ListItem
                     withHorizontalPadding
                     onPress={() => {
