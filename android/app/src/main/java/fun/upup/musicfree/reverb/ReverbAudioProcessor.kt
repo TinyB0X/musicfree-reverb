@@ -234,8 +234,10 @@ class ReverbAudioProcessor : AudioProcessor {
                 tcMidF?.let { effectL = it.process(effectL); effectR = it.processR(effectR) }
                 tcHighF?.let { effectL = it.process(effectL); effectR = it.processR(effectR) }
 
-                val sumL = knee(left + effectL)
-                val sumR = knee(right + effectR)
+                // 湿声越大，干声自动让一点电平，避免「干 + 湿」叠加后削顶产生爆音
+                val duck = 1f / (1f + wetLin * 0.8f + dbToLinear(erDb) * 0.3f)
+                val sumL = knee(left * duck + effectL)
+                val sumR = knee(right * duck + effectR)
 
                 rmsInAcc += (mono * mono).toDouble()
                 rmsOutAcc += ((sumL * sumL + sumR * sumR) * 0.5).toDouble()
@@ -289,11 +291,12 @@ class ReverbAudioProcessor : AudioProcessor {
         return 10f.pow(db / 20f)
     }
 
+    /** 只在接近满刻度时做极轻的软限幅，尽量不参与音色 */
     private fun knee(v: Float): Float {
         val a = abs(v)
-        if (a <= 0.9f) return v
+        if (a <= 0.95f) return v
         val sign = if (v < 0f) -1f else 1f
-        return sign * (0.9f + (a - 0.9f) * 0.4f).coerceAtMost(0.98f)
+        return sign * (0.95f + (a - 0.95f) * 0.5f).coerceAtMost(0.999f)
     }
 
     private fun clampToShort(value: Float): Short {
@@ -508,6 +511,7 @@ class ReverbAudioProcessor : AudioProcessor {
         private val apIdxL = IntArray(allpassTuning.size)
         private val apIdxR = IntArray(allpassTuning.size)
 
+        private val INPUT_NORMALIZE = 0.6f
         private var damp1 = 0.3f
         private var damp2 = 0.7f
         private var apCoef = 0.5f
@@ -533,23 +537,27 @@ class ReverbAudioProcessor : AudioProcessor {
         }
 
         fun process(input: Float): FloatArray {
-            val x = input * 0.12f
             var accL = 0f
             var accR = 0f
             for (i in combL.indices) {
                 val bl = combL[i]
                 val il = idxL[i]
                 val outL = bl[il]
+                // 关键：按 (1 - 反馈) 归一化输入增益。
+                // 否则衰减时间越长（反馈越接近 1），comb 稳态增益 1/(1-fb) 会急剧变大，
+                // 湿声越积越强 → 爆音/失真。归一化后任意 RT60 下湿声电平都稳定。
+                val gL = (1f - fbL[i]) * INPUT_NORMALIZE
                 storeL[i] = outL * damp2 + storeL[i] * damp1
-                bl[il] = x + storeL[i] * fbL[i]
+                bl[il] = input * gL + storeL[i] * fbL[i]
                 idxL[i] = if (il + 1 >= bl.size) 0 else il + 1
                 accL += outL
 
                 val br = combR[i]
                 val ir = idxR[i]
                 val outR = br[ir]
+                val gR = (1f - fbR[i]) * INPUT_NORMALIZE
                 storeR[i] = outR * damp2 + storeR[i] * damp1
-                br[ir] = x + storeR[i] * fbR[i]
+                br[ir] = input * gR + storeR[i] * fbR[i]
                 idxR[i] = if (ir + 1 >= br.size) 0 else ir + 1
                 accR += outR
             }
