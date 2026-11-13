@@ -135,9 +135,6 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                     applyDspParams(params)
                 }
                 dspProcessor.enabled = enabled
-                if (!enabled) {
-                    dspProcessor.wet = 0f
-                }
 
                 // 只走软件 DSP；系统效果器在这类机型上是空操作，回退反而有害
                 val dspOk = ensureDsp()
@@ -160,7 +157,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                 targetEnabled = false
                 // 关键：必须同时关掉 DSP，否则开关不起作用
                 dspProcessor.enabled = false
-                dspProcessor.wet = 0f
+                dspProcessor.wetDb = -60f
                 releaseEffect()
                 promise.resolve(buildStatus())
             } catch (t: Throwable) {
@@ -375,11 +372,12 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
     }
 
     private fun applyDspParams(map: ReadableMap) {
-        dspProcessor.wet = map.doubleOr("dspWet", 0.45f).toFloat()
-        dspProcessor.roomSize = map.doubleOr("dspRoom", 0.6f).toFloat()
-        dspProcessor.damping = map.doubleOr("dspDamp", 0.35f).toFloat()
-        dspProcessor.preDelayMs = map.doubleOr("dspPre", 20f).toFloat()
-        dspProcessor.width = map.doubleOr("dspWidth", 1f).toFloat()
+        dspProcessor.wetDb = map.doubleOr("dspWetDb", -12f).toFloat()
+        dspProcessor.rt60 = map.doubleOr("dspRt60", 2f).toFloat()
+        dspProcessor.hfDamping = map.doubleOr("dspHf", 2.4f).toFloat()
+        dspProcessor.diffusion = map.doubleOr("dspDiff", 0.75f).toFloat()
+        dspProcessor.width = map.doubleOr("dspWidth", 0.9f).toFloat()
+        dspProcessor.preDelayMs = map.doubleOr("dspPre", 40f).toFloat()
     }
 
     private fun buildStatus(): WritableMap {
@@ -391,7 +389,7 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         status.putDouble("dspFrames", dspProcessor.processedFrames.toDouble())
         status.putInt("dspSampleRate", dspProcessor.lastSampleRate)
         status.putInt("dspChannels", dspProcessor.lastChannels)
-        status.putDouble("dspWet", dspProcessor.wet.toDouble())
+        status.putDouble("dspWetDb", dspProcessor.wetDb.toDouble())
         status.putBoolean("supported", dspInstalled || effect != null)
         status.putBoolean("enabled", targetEnabled && effect != null)
         status.putInt("sessionId", attachedSessionId)

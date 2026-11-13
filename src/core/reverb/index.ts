@@ -7,133 +7,92 @@ import PersistStatus from "@/utils/persistStatus";
 import { GlobalState } from "@/utils/stateMapper";
 import type { ILanguageData } from "@/types/core/i18n";
 
-export type ReverbPresetId =
-    | "studio"
-    | "concert"
-    | "hall"
-    | "theater"
-    | "ktv"
-    | "room";
+/** 网易云音乐的混响参数模型（提取自其 APK 的 assets/audioeffect/reverb 预设） */
+export interface IReverbDspParams {
+    /** 预延迟 ms */
+    pdelay: number;
+    /** 衰减时间 RT60 秒 */
+    rt60: number;
+    /** 高频阻尼 1.5 ~ 3.5 */
+    hf: number;
+    /** 扩散 0 ~ 1 */
+    diff: number;
+    /** 立体声宽度 0 ~ 1 */
+    width: number;
+    /** 湿声电平 dB */
+    wetDb: number;
+}
 
 export interface IReverbAdvanced {
-    /** 湿度（0~100），null 表示跟随预设 */
+    /** 湿度 0~100（映射到 -40 ~ -3 dB） */
     wet?: number;
-    /** 衰减时间 ms */
+    /** 衰减秒 0.4 ~ 6 */
     decay?: number;
-    /** 阻尼（0~100，越大高频越闷） */
+    /** 阻尼 1.5 ~ 3.5 */
     damping?: number;
     /** 预延迟 ms */
     preDelay?: number;
+    /** 宽度 0 ~ 1 */
+    width?: number;
 }
 
 export interface IReverbPreset {
-    id: ReverbPresetId;
+    id: string;
     i18nKey: keyof ILanguageData;
-    /** 强度为 100% 时的参数 */
-    params: IReverbParams;
+    dsp: IReverbDspParams;
 }
 
-/** 强度 0% 时各电平压到多低（mB），保证听感接近「关闭」但不至于完全没声 */
-const WET_FLOOR_LEVEL = -2000;
-const ROOM_FLOOR_LEVEL = -1200;
-const REFLECTION_FLOOR_LEVEL = -2500;
-
+/** 数据来自网易云音乐 9.6.22 的 assets/audioeffect/reverb/*.json */
 const presets: IReverbPreset[] = [
     {
-        id: "studio",
-        i18nKey: "panel.reverb.preset.studio",
-        params: {
-            roomLevel: -150,
-            roomHFLevel: -600,
-            decayTime: 200,
-            decayHFRatio: 700,
-            reflectionsLevel: -600,
-            reflectionsDelay: 8,
-            reverbLevel: 100,
-            reverbDelay: 10,
-            diffusion: 800,
-            density: 900,
-        },
+        id: "bathroom",
+        i18nKey: "panel.reverb.preset.bathroom",
+        dsp: { pdelay: 0, rt60: 3.59, hf: 2.0, diff: 0.4, width: 0.61, wetDb: -14 },
     },
     {
-        id: "concert",
-        i18nKey: "panel.reverb.preset.concert",
-        params: {
-            roomLevel: 0,
-            roomHFLevel: -400,
-            decayTime: 3000,
-            decayHFRatio: 500,
-            reflectionsLevel: -100,
-            reflectionsDelay: 40,
-            reverbLevel: 1000,
-            reverbDelay: 60,
-            diffusion: 900,
-            density: 700,
-        },
+        id: "bright_chamber",
+        i18nKey: "panel.reverb.preset.brightChamber",
+        dsp: { pdelay: 25, rt60: 2.4, hf: 2.0, diff: 0.8, width: 1.0, wetDb: -14 },
     },
     {
-        id: "hall",
-        i18nKey: "panel.reverb.preset.hall",
-        params: {
-            roomLevel: 0,
-            roomHFLevel: -300,
-            decayTime: 2000,
-            decayHFRatio: 480,
-            reflectionsLevel: -150,
-            reflectionsDelay: 30,
-            reverbLevel: 700,
-            reverbDelay: 45,
-            diffusion: 860,
-            density: 750,
-        },
+        id: "large_room",
+        i18nKey: "panel.reverb.preset.largeRoom",
+        dsp: { pdelay: 25, rt60: 1.2, hf: 2.5, diff: 0.8, width: 0.83, wetDb: -11 },
     },
     {
-        id: "theater",
-        i18nKey: "panel.reverb.preset.theater",
-        params: {
-            roomLevel: -100,
-            roomHFLevel: -500,
-            decayTime: 1500,
-            decayHFRatio: 600,
-            reflectionsLevel: -300,
-            reflectionsDelay: 20,
-            reverbLevel: 450,
-            reverbDelay: 30,
-            diffusion: 820,
-            density: 800,
-        },
+        id: "large_hall",
+        i18nKey: "panel.reverb.preset.largeHall",
+        dsp: { pdelay: 130, rt60: 3.5, hf: 3.5, diff: 0.8, width: 1.0, wetDb: -18 },
     },
     {
-        id: "ktv",
-        i18nKey: "panel.reverb.preset.ktv",
-        params: {
-            roomLevel: -150,
-            roomHFLevel: -250,
-            decayTime: 900,
-            decayHFRatio: 900,
-            reflectionsLevel: -500,
-            reflectionsDelay: 10,
-            reverbLevel: 350,
-            reverbDelay: 20,
-            diffusion: 700,
-            density: 920,
-        },
+        id: "recital_hall",
+        i18nKey: "panel.reverb.preset.recitalHall",
+        dsp: { pdelay: 100, rt60: 2.59, hf: 3.39, diff: 0.52, width: 0.89, wetDb: -15 },
     },
     {
-        id: "room",
-        i18nKey: "panel.reverb.preset.room",
-        params: {
-            roomLevel: -600,
-            roomHFLevel: -700,
-            decayTime: 500,
-            decayHFRatio: 800,
-            reflectionsLevel: -800,
-            reflectionsDelay: 6,
-            reverbLevel: 0,
-            reverbDelay: 12,
-            diffusion: 700,
-            density: 900,
-        },
+        id: "pool",
+        i18nKey: "panel.reverb.preset.pool",
+        dsp: { pdelay: 50, rt60: 4.5, hf: 2.0, diff: 0.5, width: 0.61, wetDb: -17 },
+    },
+    {
+        id: "night_club",
+        i18nKey: "panel.reverb.preset.nightClub",
+        dsp: { pdelay: 25, rt60: 1.5, hf: 2.79, diff: 0.8, width: 0.83, wetDb: -14 },
+    },
+    {
+        id: "concrete_venue",
+        i18nKey: "panel.reverb.preset.concreteVenue",
+        dsp: { pdelay: 110, rt60: 2.5, hf: 2.79, diff: 0.44, width: 1.0, wetDb: -18 },
+    },
+    {
+        id: "small_plate",
+        i18nKey: "panel.reverb.preset.smallPlate",
+        dsp: { pdelay: 0, rt60: 2.4, hf: 2.0, diff: 0.8, width: 0.5, wetDb: -13 },
+    },
+    {
+        id: "vocal_plate",
+        i18nKey: "panel.reverb.preset.vocalPlate",
+        dsp: { pdelay: 0, rt60: 1.2, hf: 1.78, diff: 0.8, width: 0.83, wetDb: -12 },
     },
 ];
 
@@ -144,11 +103,6 @@ function clamp(value: number, min: number, max: number) {
     return Math.min(max, Math.max(min, value));
 }
 
-/** 按强度在「底板电平 ~ 预设电平」之间插值（强度越高湿声越明显） */
-function mixLevel(base: number, ratio: number, floor: number) {
-    return Math.round(base * ratio + floor * (1 - ratio));
-}
-
 export function getReverbPresets() {
     return presets;
 }
@@ -157,6 +111,7 @@ export function getReverbPreset(id?: string) {
     return presets.find(_ => _.id === id) ?? presets[0];
 }
 
+/** 把预设 + 强度 + 高级参数换算成原生要的参数 */
 export function buildReverbParams(
     presetId: string,
     intensity: number,
@@ -164,124 +119,51 @@ export function buildReverbParams(
 ): IReverbParams {
     const preset = getReverbPreset(presetId);
     const ratio = clamp(intensity, 0, 100) / 100;
-    const params = buildBaseParams(preset, ratio);
 
-    // 手动参数优先
+    // 预设里是网易云的原始电平（-17~-25dB），这里整体 +8dB 并随强度微调，
+    // 保证在手机上能明显听出来（网易云还有早反射/多段滤波加持）
+    let wetDb = clamp(preset.dsp.wetDb + 8 - (1 - ratio) * 12, -60, -3);
+    let rt60 = preset.dsp.rt60;
+    let hf = preset.dsp.hf;
+    let pre = preset.dsp.pdelay;
+    let width = preset.dsp.width;
+    const diff = preset.dsp.diff;
+
     if (typeof advanced?.wet === "number") {
-        params.reverbLevel = Math.round(-6000 + clamp(advanced.wet, 0, 100) * 80);
+        wetDb = -40 + clamp(advanced.wet, 0, 100) / 100 * 37;
     }
     if (typeof advanced?.decay === "number") {
-        params.decayTime = Math.round(clamp(advanced.decay, 100, 8000));
+        rt60 = clamp(advanced.decay, 0.4, 6);
     }
     if (typeof advanced?.damping === "number") {
-        const damping = clamp(advanced.damping, 0, 100);
-        params.diffusion = Math.round(1000 - damping * 10);
-        params.decayHFRatio = Math.round(1500 - damping * 13);
+        hf = clamp(advanced.damping, 1.5, 3.5);
     }
     if (typeof advanced?.preDelay === "number") {
-        const pre = Math.round(clamp(advanced.preDelay, 0, 200));
-        params.reflectionsDelay = pre;
-        params.reverbDelay = Math.min(100, pre + 10);
+        pre = clamp(advanced.preDelay, 0, 150);
+    }
+    if (typeof advanced?.width === "number") {
+        width = clamp(advanced.width, 0, 1);
     }
 
-    // 软件 DSP 参数（不依赖机型，优先使用）
-    const decay = params.decayTime;
-    params.dspWet =
-        typeof advanced?.wet === "number"
-            ? clamp(advanced.wet, 0, 100) / 100
-            : clamp(ratio, 0, 1) * 0.9;
-    params.dspRoom = clamp((decay - 300) / 5000, 0.2, 0.95);
-    params.dspDamp =
-        typeof advanced?.damping === "number"
-            ? clamp(advanced.damping, 0, 100) / 100
-            : 0.35;
-    params.dspPre =
-        typeof advanced?.preDelay === "number"
-            ? clamp(advanced.preDelay, 0, 200)
-            : 20;
-    params.dspWidth = 1;
-
-    return params;
-}
-
-function buildBaseParams(
-    preset: IReverbPreset,
-    ratio: number,
-): IReverbParams {
+    // 系统效果器那套参数保留（不再使用，但对接口兼容）
     return {
-        ...preset.params,
-        roomLevel: mixLevel(preset.params.roomLevel, ratio, ROOM_FLOOR_LEVEL),
-        reflectionsLevel: mixLevel(
-            preset.params.reflectionsLevel,
-            ratio,
-            REFLECTION_FLOOR_LEVEL,
-        ),
-        reverbLevel: mixLevel(preset.params.reverbLevel, ratio, WET_FLOOR_LEVEL),
+        roomLevel: 0,
+        roomHFLevel: 0,
+        decayTime: Math.round(rt60 * 1000),
+        decayHFRatio: 500,
+        reflectionsLevel: 0,
+        reflectionsDelay: Math.round(pre),
+        reverbLevel: 0,
+        reverbDelay: 20,
+        diffusion: Math.round(diff * 1000),
+        density: 700,
+        dspWetDb: wetDb,
+        dspRt60: rt60,
+        dspHf: hf,
+        dspDiff: diff,
+        dspPre: pre,
+        dspWidth: width,
     };
-}
-
-const advancedStore = new GlobalState<IReverbAdvanced>(
-    PersistStatus.get("audio.reverbAdvanced") ?? {},
-);
-const eqTestStore = new GlobalState<boolean>(false);
-
-export function useReverbAdvanced() {
-    return advancedStore.useValue();
-}
-
-export function useEqTesting() {
-    const status = statusStore.useValue();
-    return !!status?.eqTesting;
-}
-
-export async function setReverbAdvanced(advanced: IReverbAdvanced) {
-    advancedStore.setValue(advanced);
-    PersistStatus.set("audio.reverbAdvanced", advanced);
-    if (enabledStore.getValue()) {
-        schedulePush(40);
-    }
-}
-
-export async function resetReverbAdvanced() {
-    advancedStore.setValue({});
-    PersistStatus.set("audio.reverbAdvanced", {});
-    if (enabledStore.getValue()) {
-        schedulePush();
-    }
-}
-
-export async function setEqTest(enabled: boolean) {
-    eqTestStore.setValue(enabled);
-    try {
-        if (enabled) {
-            await NativeReverb?.testEqualizer(true);
-        } else {
-            await NativeReverb?.testEqualizer(false);
-        }
-        scheduleStatusRefresh();
-    } catch {}
-}
-
-/** App 启动时预先挂载 DSP（避免播放中途替换音频输出造成卡顿） */
-export async function prepareDsp() {
-    if (!NativeReverb) {
-        return;
-    }
-    try {
-        const status = await NativeReverb.prepareDsp();
-        statusStore.setValue(status);
-    } catch {}
-}
-
-/** 切歌/真正开始播放后强制重新挂载（部分机型只有此刻才吃效果） */
-export async function forceReattachReverb() {
-    if (!NativeReverb || !enabledStore.getValue()) {
-        return;
-    }
-    try {
-        const status = await NativeReverb.forceReattach();
-        statusStore.setValue(status);
-    } catch {}
 }
 
 const enabledStore = new GlobalState<boolean>(
@@ -291,12 +173,13 @@ const presetStore = new GlobalState<string>(
     getReverbPreset(PersistStatus.get("audio.reverbPreset") ?? undefined).id,
 );
 const intensityStore = new GlobalState<number>(
-    clamp(PersistStatus.get("audio.reverbIntensity") ?? 60, 0, 100),
+    clamp(PersistStatus.get("audio.reverbIntensity") ?? 70, 0, 100),
 );
-/** 设备/系统是否真的支持混响 */
 const supportedStore = new GlobalState<boolean>(!!NativeReverb);
-/** 原生侧最近一次状态（用于面板展示诊断信息） */
 const statusStore = new GlobalState<INativeReverbStatus | null>(null);
+const advancedStore = new GlobalState<IReverbAdvanced>(
+    PersistStatus.get("audio.reverbAdvanced") ?? {},
+);
 
 export function useReverbEnabled() {
     return enabledStore.useValue();
@@ -318,6 +201,15 @@ export function useReverbStatus() {
     return statusStore.useValue();
 }
 
+export function useReverbAdvanced() {
+    return advancedStore.useValue();
+}
+
+export function useEqTesting() {
+    const status = statusStore.useValue();
+    return !!status?.eqTesting;
+}
+
 export function isReverbAvailable() {
     return !!NativeReverb;
 }
@@ -337,26 +229,16 @@ async function refreshStatus() {
     try {
         const status = await NativeReverb.getStatus();
         statusStore.setValue(status);
-        // 只有真正挂上效果器、或者已经彻底重试失败，才更新「是否支持」
-        if (status.supported) {
+        if (status.dspInstalled) {
             supportedStore.setValue(true);
-        } else if (status.gaveUp) {
-            supportedStore.setValue(false);
         }
-    } catch {
-        // 原生模块异常，保留上一次状态
-    }
+    } catch {}
 }
 
-/** 原生侧挂载是异步 + 需要重试的，隔一段时间再确认状态 */
 function scheduleStatusRefresh() {
     clearStatusTimers();
     [600, 1800, 4000, 8000].forEach(delay => {
-        statusTimers.push(
-            setTimeout(() => {
-                refreshStatus();
-            }, delay),
-        );
+        statusTimers.push(setTimeout(() => refreshStatus(), delay));
     });
 }
 
@@ -377,14 +259,12 @@ async function pushToNative() {
             intensityStore.getValue(),
         );
         statusStore.setValue(status);
-        if (!enabled || status.supported) {
+        if (status.dspInstalled) {
             supportedStore.setValue(true);
         }
-        // 开启时原生可能还在等播放器创建 session，稍后再刷新
         scheduleStatusRefresh();
     } catch (e: any) {
         errorLog("混响参数应用失败", e?.message);
-        supportedStore.setValue(false);
     }
 }
 
@@ -429,7 +309,43 @@ export async function setReverbIntensity(intensity: number) {
     schedulePush(60);
 }
 
-/** 播放器初始化完成后，把上次保存的混响状态恢复回去 */
+export async function setReverbAdvanced(advanced: IReverbAdvanced) {
+    advancedStore.setValue(advanced);
+    PersistStatus.set("audio.reverbAdvanced", advanced);
+    if (enabledStore.getValue()) {
+        schedulePush(40);
+    }
+}
+
+export async function resetReverbAdvanced() {
+    advancedStore.setValue({});
+    PersistStatus.set("audio.reverbAdvanced", {});
+    if (enabledStore.getValue()) {
+        schedulePush();
+    }
+}
+
+export async function setEqTest(enabled: boolean) {
+    try {
+        if (enabled) {
+            await NativeReverb?.testEqualizer(true);
+        } else {
+            await NativeReverb?.testEqualizer(false);
+        }
+        scheduleStatusRefresh();
+    } catch {}
+}
+
+export async function prepareDsp() {
+    if (!NativeReverb) {
+        return;
+    }
+    try {
+        const status = await NativeReverb.prepareDsp();
+        statusStore.setValue(status);
+    } catch {}
+}
+
 export async function restoreReverb() {
     if (!NativeReverb) {
         return;
@@ -441,10 +357,19 @@ export async function restoreReverb() {
     await pushToNative();
 }
 
-/** 切歌/开始播放时重新确认一次（session 可能在播放后才生成） */
 export function reapplyReverb() {
     if (!NativeReverb || !enabledStore.getValue()) {
         return;
     }
     schedulePush(200);
+}
+
+export async function forceReattachReverb() {
+    if (!NativeReverb || !enabledStore.getValue()) {
+        return;
+    }
+    try {
+        const status = await NativeReverb.forceReattach();
+        statusStore.setValue(status);
+    } catch {}
 }

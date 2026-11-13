@@ -218,7 +218,7 @@ export default function ReverbPanel() {
                             <View style={styles.advancedBody}>
                                 <ParamSlider
                                     label={i18n.t("panel.reverb.advanced.wet")}
-                                    value={advanced.wet ?? 50}
+                                    value={advanced.wet ?? 70}
                                     min={0}
                                     max={100}
                                     unit="%"
@@ -227,28 +227,28 @@ export default function ReverbPanel() {
                                 />
                                 <ParamSlider
                                     label={i18n.t("panel.reverb.advanced.decay")}
-                                    value={advanced.decay ?? 2000}
-                                    min={100}
-                                    max={8000}
-                                    step={50}
-                                    unit="ms"
+                                    value={advanced.decay ?? 2.5}
+                                    min={0.4}
+                                    max={6}
+                                    step={0.1}
+                                    unit="s"
                                     disabled={!enabled}
                                     onValueChange={v => updateAdvanced({ decay: v })}
                                 />
                                 <ParamSlider
                                     label={i18n.t("panel.reverb.advanced.damping")}
-                                    value={advanced.damping ?? 30}
-                                    min={0}
-                                    max={100}
-                                    unit="%"
+                                    value={advanced.damping ?? 2.4}
+                                    min={1.5}
+                                    max={3.5}
+                                    step={0.1}
                                     disabled={!enabled}
                                     onValueChange={v => updateAdvanced({ damping: v })}
                                 />
                                 <ParamSlider
                                     label={i18n.t("panel.reverb.advanced.preDelay")}
-                                    value={advanced.preDelay ?? 20}
+                                    value={advanced.preDelay ?? 40}
                                     min={0}
-                                    max={200}
+                                    max={150}
                                     unit="ms"
                                     disabled={!enabled}
                                     onValueChange={v => updateAdvanced({ preDelay: v })}
@@ -338,7 +338,8 @@ export default function ReverbPanel() {
                                     " frames=" +
                                     status.dspFrames +
                                     " wet=" +
-                                    status.dspWet.toFixed(2) +
+                                    status.dspWetDb.toFixed(1) +
+                                    "dB" +
                                     " " +
                                     status.dspSampleRate +
                                     "Hz/" +

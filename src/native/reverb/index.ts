@@ -17,12 +17,14 @@ export interface IReverbParams {
     reverbDelay: number;
     diffusion: number;
     density: number;
-    /** 软件 DSP：湿声比例 0~1 */
-    dspWet?: number;
-    /** 软件 DSP：房间大小 0~1 */
-    dspRoom?: number;
-    /** 软件 DSP：阻尼 0~1 */
-    dspDamp?: number;
+    /** 软件 DSP：湿声电平 dB */
+    dspWetDb?: number;
+    /** 软件 DSP：衰减时间 RT60 秒 */
+    dspRt60?: number;
+    /** 软件 DSP：高频阻尼 1.5~3.5 */
+    dspHf?: number;
+    /** 软件 DSP：扩散 0~1 */
+    dspDiff?: number;
     /** 软件 DSP：预延迟 ms */
     dspPre?: number;
     /** 软件 DSP：立体声宽度 0~1 */
@@ -68,8 +70,8 @@ export interface INativeReverbStatus {
     dspSampleRate: number;
     /** 诊断：声道数 */
     dspChannels: number;
-    /** 诊断：当前湿声比例 */
-    dspWet: number;
+    /** 诊断：当前湿声电平 dB */
+    dspWetDb: number;
 }
 
 export interface INativeReverb extends NativeModule {

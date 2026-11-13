@@ -527,6 +527,16 @@ export interface ILanguageData {
     "panel.reverb.status.preset": string; // 预设混响
     "panel.reverb.failed": string; // 不可用原因
     "panel.reverb.preset.none": string; // 原声
+    "panel.reverb.preset.bathroom": string;
+    "panel.reverb.preset.brightChamber": string;
+    "panel.reverb.preset.largeRoom": string;
+    "panel.reverb.preset.largeHall": string;
+    "panel.reverb.preset.recitalHall": string;
+    "panel.reverb.preset.pool": string;
+    "panel.reverb.preset.nightClub": string;
+    "panel.reverb.preset.concreteVenue": string;
+    "panel.reverb.preset.smallPlate": string;
+    "panel.reverb.preset.vocalPlate": string;
     "panel.reverb.preset.studio": string; // 录音棚
     "panel.reverb.preset.concert": string; // 演唱会
     "panel.reverb.preset.hall": string; // 音乐厅
