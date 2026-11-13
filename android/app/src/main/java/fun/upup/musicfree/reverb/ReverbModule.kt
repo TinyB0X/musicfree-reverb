@@ -351,6 +351,31 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    /** 设置 10 段均衡器增益（dB），对应网易云 EQ 预设 */
+    @ReactMethod
+    fun setEq(gains: com.facebook.react.bridge.ReadableArray?, promise: Promise) {
+        runOnMain {
+            try {
+                val arr = FloatArray(10)
+                if (gains != null) {
+                    val n = minOf(10, gains.size())
+                    for (i in 0 until n) {
+                        arr[i] = try {
+                            gains.getDouble(i).toFloat()
+                        } catch (t: Throwable) {
+                            0f
+                        }
+                    }
+                }
+                dspProcessor.eqGains = arr
+                dspProcessor.eqDirty = true
+                promise.resolve(buildStatus())
+            } catch (t: Throwable) {
+                promise.reject("reverb_eq_failed", t)
+            }
+        }
+    }
+
     @ReactMethod
     fun getStatus(promise: Promise) {
         runOnMain {

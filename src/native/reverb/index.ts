@@ -86,6 +86,7 @@ export interface INativeReverb extends NativeModule {
     forceReattach: () => Promise<INativeReverbStatus>;
     prepareDsp: () => Promise<INativeReverbStatus>;
     testEqualizer: (enabled: boolean) => Promise<INativeReverbStatus>;
+    setEq: (gains: number[]) => Promise<INativeReverbStatus>;
 }
 
 /** 仅 Android 端有原生混响模块 */

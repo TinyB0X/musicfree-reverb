@@ -166,6 +166,65 @@ export function buildReverbParams(
     };
 }
 
+export interface IEqPreset {
+    id: string;
+    i18nKey: keyof ILanguageData;
+    /** 10 段增益 dB：31/62/125/250/500/1k/2k/4k/8k/16k */
+    gains: number[];
+}
+
+/** 数据来自网易云音乐 assets/audioeffect/eq/*.json */
+const eqPresets: IEqPreset[] = [
+    { id: "flat", i18nKey: "panel.eq.flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { id: "acg", i18nKey: "panel.eq.acg", gains: [4, 6.19, 3.5, -0.5, -0.8, 2, 5.19, 1, 1.5, 4] },
+    { id: "ballad", i18nKey: "panel.eq.ballad", gains: [0, 3, 0, -0.8, 1.5, 4.8, 5.8, 3.2, 0.5, 2] },
+    { id: "bass", i18nKey: "panel.eq.bass", gains: [6, 4.5, 6.2, 2.09, 0, 0, 0, 0, 0, 0] },
+    { id: "bass_treble", i18nKey: "panel.eq.bassTreble", gains: [6, 5, 6.2, 1.5, 0, 0, 1, 3.2, 4, 0] },
+    { id: "blues", i18nKey: "panel.eq.blues", gains: [2, 6, 4.5, 0, -2.2, -1.5, 2, 2.5, 1.79, 3] },
+    { id: "chinese", i18nKey: "panel.eq.chinese", gains: [4, 2, 2, -0.5, -1, 3.5, 4.5, 1, 1, 3] },
+    { id: "classical", i18nKey: "panel.eq.classical", gains: [4.5, 4, 3, 2.29, -1, -1.2, 0, 1.79, 3, 4.5] },
+    { id: "country", i18nKey: "panel.eq.country", gains: [0, 2.2, 3, 0.6, 0, 2.29, 3.09, 1, -0.19, -0.3] },
+    { id: "dance", i18nKey: "panel.eq.dance", gains: [4, 5.8, 7, 0, 1.5, 3, 4.59, 4, 3.2, 0] },
+    { id: "downtempo", i18nKey: "panel.eq.downtempo", gains: [2, 0, 0.6, 0, -0.8, 0, 0, 0, -1, 1] },
+    { id: "electronic", i18nKey: "panel.eq.electronic", gains: [5, 6.09, 5.2, 0, -1.6, 1.5, 0, 1, 4.57, 3.77] },
+    { id: "heavy_metal", i18nKey: "panel.eq.heavyMetal", gains: [-2.5, 5.29, 4.49, -2, -2.09, -1.6, 2.09, 3, 1.11, 4] },
+    { id: "hiphop", i18nKey: "panel.eq.hiphop", gains: [5.6, 5.09, 4, 0.5, -2, 1.2, 3.79, 0.5, 3.5, 4] },
+    { id: "jazz", i18nKey: "panel.eq.jazz", gains: [3.2, 3, 1.5, 2.4, -1.5, -1, 0, 1.6, 2, 4.5] },
+    { id: "live", i18nKey: "panel.eq.live", gains: [5.59, 5, 6, 0, -1, 0, 3.09, 4.5, 6, 5] },
+    { id: "mid", i18nKey: "panel.eq.mid", gains: [-2, -3, -3.5, 0, 1.29, 4.5, 3.2, 2, -1.5, -2] },
+    { id: "pop", i18nKey: "panel.eq.pop", gains: [-1.5, -1, 0, 1.79, 4, 3.79, 1.79, 0.5, -1, 1] },
+    { id: "rock", i18nKey: "panel.eq.rock", gains: [4.5, 3.09, 3.4, 1.2, 0, -1, 0, 1.5, 2.79, 4.5] },
+    { id: "soft", i18nKey: "panel.eq.soft", gains: [0.5, 0.3, 0, 0, 0, 0, -0.5, -2.08, -2.79, 0] },
+    { id: "soft_bass", i18nKey: "panel.eq.softBass", gains: [3.5, 2.2, 1, 0.6, 0, 0, 0, -2, -2.5, -2] },
+    { id: "soft_treble", i18nKey: "panel.eq.softTreble", gains: [-3, -1.88, 0, 0, 0, 0, -0.5, -1.28, 3.2, 2] },
+    { id: "strong_bass", i18nKey: "panel.eq.strongBass", gains: [6, 5.5, 8.3, 2.07, 0, 0, 0, 0, 0, 0] },
+];
+
+const eqPresetStore = new GlobalState<string>(
+    PersistStatus.get("audio.eqPreset") ?? "flat",
+);
+
+export function getEqPresets() {
+    return eqPresets;
+}
+
+export function getEqPreset(id?: string) {
+    return eqPresets.find(_ => _.id === id) ?? eqPresets[0];
+}
+
+export function useEqPreset() {
+    return eqPresetStore.useValue();
+}
+
+export async function setEqPreset(id: string) {
+    const preset = getEqPreset(id);
+    eqPresetStore.setValue(preset.id);
+    PersistStatus.set("audio.eqPreset", preset.id);
+    try {
+        await NativeReverb?.setEq(preset.gains);
+    } catch {}
+}
+
 const enabledStore = new GlobalState<boolean>(
     PersistStatus.get("audio.reverbEnabled") ?? false,
 );
@@ -343,6 +402,8 @@ export async function prepareDsp() {
     try {
         const status = await NativeReverb.prepareDsp();
         statusStore.setValue(status);
+        // 恢复上次的 EQ
+        await NativeReverb.setEq(getEqPreset(eqPresetStore.getValue()).gains);
     } catch {}
 }
 

@@ -527,6 +527,30 @@ export interface ILanguageData {
     "panel.reverb.status.preset": string; // 预设混响
     "panel.reverb.failed": string; // 不可用原因
     "panel.reverb.preset.none": string; // 原声
+    "panel.eq.title": string;
+    "panel.eq.flat": string;
+    "panel.eq.acg": string;
+    "panel.eq.ballad": string;
+    "panel.eq.bass": string;
+    "panel.eq.bassTreble": string;
+    "panel.eq.blues": string;
+    "panel.eq.chinese": string;
+    "panel.eq.classical": string;
+    "panel.eq.country": string;
+    "panel.eq.dance": string;
+    "panel.eq.downtempo": string;
+    "panel.eq.electronic": string;
+    "panel.eq.heavyMetal": string;
+    "panel.eq.hiphop": string;
+    "panel.eq.jazz": string;
+    "panel.eq.live": string;
+    "panel.eq.mid": string;
+    "panel.eq.pop": string;
+    "panel.eq.rock": string;
+    "panel.eq.soft": string;
+    "panel.eq.softBass": string;
+    "panel.eq.softTreble": string;
+    "panel.eq.strongBass": string;
     "panel.reverb.preset.bathroom": string;
     "panel.reverb.preset.brightChamber": string;
     "panel.reverb.preset.largeRoom": string;

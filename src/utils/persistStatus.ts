@@ -44,6 +44,8 @@ interface IPersistStatus {
     "audio.reverbPreset": string;
     /** 混响-强度 0~100 */
     "audio.reverbIntensity": number;
+    /** 均衡器预设 id */
+    "audio.eqPreset": string;
     /** 混响-高级参数（湿度/衰减/阻尼/预延迟） */
     "audio.reverbAdvanced": {
         wet?: number;

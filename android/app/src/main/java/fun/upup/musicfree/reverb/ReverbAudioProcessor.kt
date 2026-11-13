@@ -43,6 +43,13 @@ class ReverbAudioProcessor : AudioProcessor {
     /** 预延迟 ms */
     @Volatile var preDelayMs: Float = 40f
 
+    /** 10 段均衡器（网易云 EQ 预设的频段） */
+    private val eqFreqs = floatArrayOf(31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f)
+    @Volatile var eqGains: FloatArray = FloatArray(10)
+    private var eqL: Array<Biquad>? = null
+    private var eqR: Array<Biquad>? = null
+    @Volatile var eqDirty = false
+
     private var inputFormat: AudioProcessor.AudioFormat = AudioProcessor.AudioFormat.NOT_SET
     private var outputBuffer: ByteBuffer = AudioProcessor.EMPTY_BUFFER
     private var pendingEos = false
@@ -85,6 +92,9 @@ class ReverbAudioProcessor : AudioProcessor {
         sampleRate = inputAudioFormat.sampleRate.coerceAtLeast(8000)
         channelCount = inputAudioFormat.channelCount.coerceAtLeast(1)
         engine = Freeverb(sampleRate)
+        eqL = Array(eqFreqs.size) { Biquad() }
+        eqR = Array(eqFreqs.size) { Biquad() }
+        updateEqCoefficients()
         preDelayBuf = FloatArray((sampleRate * 0.4f).toInt().coerceAtLeast(16))
         preDelayPos = 0
         wetCurrent = 0f
@@ -126,10 +136,24 @@ class ReverbAudioProcessor : AudioProcessor {
 
             processedFrames += frames.toLong()
 
+            if (eqDirty) {
+                updateEqCoefficients()
+            }
+            val eqsL = eqL
+            val eqsR = eqR
+            val useEq = eqGains.any { it != 0f }
+
             for (i in 0 until frames) {
-                val left = src.get().toInt() / 32768f
-                val right = if (channelCount >= 2) src.get().toInt() / 32768f else left
+                var left = src.get().toInt() / 32768f
+                var right = if (channelCount >= 2) src.get().toInt() / 32768f else left
                 for (c in 2 until channelCount) src.get()
+
+                if (useEq && eqsL != null && eqsR != null) {
+                    for (b in eqsL.indices) {
+                        left = eqsL[b].process(left)
+                        right = eqsR[b].process(right)
+                    }
+                }
 
                 val mono = (left + right) * 0.5f
 
@@ -244,6 +268,51 @@ class ReverbAudioProcessor : AudioProcessor {
         inputFormat = AudioProcessor.AudioFormat.NOT_SET
         engine = null
         faultBypass = false
+    }
+
+    /** 更新 10 段 peaking EQ 的系数（RBJ cookbook） */
+    private fun updateEqCoefficients() {
+        val fs = sampleRate.toFloat()
+        val l = eqL ?: return
+        val r = eqR ?: return
+        for (i in eqFreqs.indices) {
+            val gain = eqGains.getOrElse(i) { 0f }
+            l[i].setPeaking(fs, eqFreqs[i], gain, 1.0f)
+            r[i].setPeaking(fs, eqFreqs[i], gain, 1.0f)
+        }
+        eqDirty = false
+    }
+
+    /** 简单的二阶 peaking biquad */
+    private class Biquad {
+        private var b0 = 1f; private var b1 = 0f; private var b2 = 0f
+        private var a1 = 0f; private var a2 = 0f
+        private var x1 = 0f; private var x2 = 0f
+        private var y1 = 0f; private var y2 = 0f
+
+        fun setPeaking(fs: Float, freq: Float, gainDb: Float, q: Float) {
+            if (freq >= fs * 0.49f || gainDb == 0f) {
+                b0 = 1f; b1 = 0f; b2 = 0f; a1 = 0f; a2 = 0f
+                return
+            }
+            val a = 10f.pow(gainDb / 40f)
+            val w0 = 2.0 * Math.PI * (freq / fs)
+            val alpha = Math.sin(w0) / (2.0 * q)
+            val cosw = Math.cos(w0)
+            val a0 = 1.0 + alpha / a
+            b0 = ((1.0 + alpha * a) / a0).toFloat()
+            b1 = ((-2.0 * cosw) / a0).toFloat()
+            b2 = ((1.0 - alpha * a) / a0).toFloat()
+            a1 = ((-2.0 * cosw) / a0).toFloat()
+            a2 = ((1.0 - alpha / a) / a0).toFloat()
+        }
+
+        fun process(x: Float): Float {
+            val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1; x1 = x
+            y2 = y1; y1 = y
+            return if (y.isFinite()) y else 0f
+        }
     }
 
     /**

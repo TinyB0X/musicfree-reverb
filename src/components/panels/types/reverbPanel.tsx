@@ -11,6 +11,9 @@ import useColors from "@/hooks/useColors";
 import { useI18N } from "@/core/i18n";
 import rpx from "@/utils/rpx";
 import {
+    getEqPresets,
+    setEqPreset,
+    useEqPreset,
     getReverbPresets,
     resetReverbAdvanced,
     setEqTest,
@@ -79,6 +82,7 @@ export default function ReverbPanel() {
     const intensity = useReverbIntensity();
     const status = useReverbStatus();
     const advanced = useReverbAdvanced();
+    const eqPreset = useEqPreset();
 
     const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -128,6 +132,43 @@ export default function ReverbPanel() {
                                 }}
                             />
                         </View>
+
+                        <ThemeText
+                            style={styles.sectionTitle}
+                            fontSize="subTitle"
+                            fontWeight="semibold">
+                            {i18n.t("panel.eq.title")}
+                        </ThemeText>
+
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.eqRowContent}>
+                            {getEqPresets().map(item => {
+                                const active = eqPreset === item.id;
+                                return (
+                                    <Pressable
+                                        key={item.id}
+                                        style={[
+                                            styles.eqChip,
+                                            {
+                                                backgroundColor: active
+                                                    ? colors.primary
+                                                    : colors.card,
+                                            },
+                                        ]}
+                                        onPress={() => {
+                                            setEqPreset(item.id);
+                                        }}>
+                                        <ThemeText
+                                            color={active ? "white" : undefined}
+                                            fontSize="description">
+                                            {i18n.t(item.i18nKey)}
+                                        </ThemeText>
+                                    </Pressable>
+                                );
+                            })}
+                        </ScrollView>
 
                         <ThemeText
                             style={styles.sectionTitle}
@@ -370,6 +411,18 @@ const styles = StyleSheet.create({
     sectionTitle: {
         marginTop: rpx(8),
         marginBottom: rpx(20),
+    },
+    eqRowContent: {
+        gap: rpx(10),
+        paddingVertical: rpx(4),
+        paddingRight: rpx(24),
+    },
+    eqChip: {
+        paddingHorizontal: rpx(22),
+        height: rpx(62),
+        borderRadius: rpx(31),
+        alignItems: "center",
+        justifyContent: "center",
     },
     presetWrapper: {
         width: "100%",
