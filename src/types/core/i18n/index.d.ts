@@ -285,6 +285,14 @@ export interface ILanguageData {
     "basicSettings.musicDetailDefault.album": string; // 专辑
     "basicSettings.musicDetailDefault.lyric": string; // 歌词
     "basicSettings.musicDetailAwake": string; // 唤醒音乐详情
+    "musicDetail.tab.cover": string;
+    "musicDetail.tab.lyric": string;
+    "musicDetail.action.favorite": string;
+    "musicDetail.action.download": string;
+    "musicDetail.action.comment": string;
+    "musicDetail.action.quality": string;
+    "musicDetail.action.sound": string;
+    "musicDetail.action.more": string;
     "basicSettings.associateLyricType": string; // 关联歌词类型
     "basicSettings.associateLyricType.input": string; // 输入
     "basicSettings.associateLyricType.search": string; // 搜索

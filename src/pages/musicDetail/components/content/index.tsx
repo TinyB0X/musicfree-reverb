@@ -1,27 +1,23 @@
-import React, { useState } from "react";
+import React from "react";
 import { View } from "react-native";
 import AlbumCover from "./albumCover";
 import Lyric from "./lyric";
 import useOrientation from "@/hooks/useOrientation";
 import Config from "@/core/appConfig";
 import globalStyle from "@/constants/globalStyle";
+import { toggleMusicDetailTab, useMusicDetailTab } from "../../tabState";
 
 export default function Content() {
-    const [tab, selectTab] = useState<"album" | "lyric">(
-        Config.getConfig("basic.musicDetailDefault") || "album",
-    );
+    const tab = useMusicDetailTab();
     const orientation = useOrientation();
-    const showAlbumCover = tab === "album" || orientation === "horizontal";
+    const showAlbumCover =
+        tab === "album" || orientation === "horizontal";
 
     const onTurnPageClick = () => {
         if (orientation === "horizontal") {
             return;
         }
-        if (tab === "album") {
-            selectTab("lyric");
-        } else {
-            selectTab("album");
-        }
+        toggleMusicDetailTab();
     };
 
     return (

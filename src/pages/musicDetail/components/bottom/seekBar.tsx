@@ -26,9 +26,9 @@ export default function SeekBar() {
             <TimeLabel time={tmpProgress ?? progress.position} />
             <Slider
                 style={style.slider}
-                minimumTrackTintColor={"#cccccc"}
-                maximumTrackTintColor={"#999999"}
-                thumbTintColor={"#dddddd"}
+                minimumTrackTintColor={"#E8542B"}
+                maximumTrackTintColor={"rgba(255,255,255,0.22)"}
+                thumbTintColor={"#ffffff"}
                 minimumValue={0}
                 maximumValue={progress.duration}
                 onSlidingStart={() => {
@@ -61,14 +61,17 @@ const style = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "row",
+        marginTop: rpx(16),
     },
     slider: {
-        width: "73%",
+        flex: 1,
         height: rpx(40),
     },
     text: {
+        width: rpx(96),
+        textAlign: "center",
         fontSize: fontSizeConst.description,
         includeFontPadding: false,
-        color: "#cccccc",
+        color: "rgba(255,255,255,0.6)",
     },
 });
