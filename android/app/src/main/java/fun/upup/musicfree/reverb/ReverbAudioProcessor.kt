@@ -38,12 +38,21 @@ class ReverbAudioProcessor : AudioProcessor {
     private var preDelay: FloatArray = FloatArray(0)
     private var preDelayPos = 0
 
+    /** 诊断计数：configure 调了几次、处理了多少帧 */
+    @Volatile var configureCount: Int = 0
+    @Volatile var processedFrames: Long = 0
+    @Volatile var lastSampleRate: Int = 0
+    @Volatile var lastChannels: Int = 0
+
     override fun configure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
             inputFormat = AudioProcessor.AudioFormat.NOT_SET
             return AudioProcessor.AudioFormat.NOT_SET
         }
         inputFormat = inputAudioFormat
+        configureCount++
+        lastSampleRate = inputAudioFormat.sampleRate
+        lastChannels = inputAudioFormat.channelCount
         sampleRate = inputAudioFormat.sampleRate.coerceAtLeast(8000)
         channelCount = inputAudioFormat.channelCount.coerceAtLeast(1)
         engine = Freeverb(sampleRate)
@@ -79,6 +88,7 @@ class ReverbAudioProcessor : AudioProcessor {
         } else {
             engineRef.setParams(wet, roomSize, damping, width)
             val frames = size / 2 / channelCount
+            processedFrames += frames.toLong()
             for (i in 0 until frames) {
                 var left = src.get().toInt() / 32768f
                 var right = if (channelCount >= 2) src.get().toInt() / 32768f else left

@@ -280,10 +280,31 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
                     newSink.setListener(listener)
                 }
 
+                // 记录当前播放进度：换 sink 后 seek 一次，让渲染器重新 configure 新 sink
+                val position = try {
+                    player.javaClass.getMethod("getCurrentPosition").invoke(player) as Long
+                } catch (_: Throwable) {
+                    0L
+                }
+                val playing = try {
+                    player.javaClass.getMethod("isPlaying").invoke(player) as Boolean
+                } catch (_: Throwable) {
+                    false
+                }
+
                 field.set(renderer, newSink)
                 try {
                     oldSink?.release()
                 } catch (_: Throwable) {
+                }
+
+                if (playing || position > 0) {
+                    try {
+                        player.javaClass
+                            .getMethod("seekTo", Long::class.javaPrimitiveType)
+                            .invoke(player, position)
+                    } catch (_: Throwable) {
+                    }
                 }
 
                 dspInstalled = true
@@ -347,6 +368,11 @@ class ReverbModule(private val reactContext: ReactApplicationContext) :
         val effects = queryDeviceEffects()
         status.putBoolean("dspInstalled", dspInstalled)
         status.putString("dspError", dspError)
+        status.putInt("dspConfigureCount", dspProcessor.configureCount)
+        status.putDouble("dspFrames", dspProcessor.processedFrames.toDouble())
+        status.putInt("dspSampleRate", dspProcessor.lastSampleRate)
+        status.putInt("dspChannels", dspProcessor.lastChannels)
+        status.putDouble("dspWet", dspProcessor.wet.toDouble())
         status.putBoolean("supported", dspInstalled || effect != null)
         status.putBoolean("enabled", targetEnabled && effect != null)
         status.putInt("sessionId", attachedSessionId)

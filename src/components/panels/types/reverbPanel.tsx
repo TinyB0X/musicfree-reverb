@@ -329,6 +329,19 @@ export default function ReverbPanel() {
                                     ? "  ·  EQ " +
                                       (status.eqHasControl ? "OK" : "NO-CTRL")
                                     : ""}
+                                {"  ·  DSP " +
+                                    (status.dspInstalled ? "ON" : "OFF") +
+                                    " cfg=" +
+                                    status.dspConfigureCount +
+                                    " frames=" +
+                                    status.dspFrames +
+                                    " wet=" +
+                                    status.dspWet.toFixed(2) +
+                                    " " +
+                                    status.dspSampleRate +
+                                    "Hz/" +
+                                    status.dspChannels +
+                                    "ch"}
                             </ThemeText>
                         ) : null}
                     </ScrollView>

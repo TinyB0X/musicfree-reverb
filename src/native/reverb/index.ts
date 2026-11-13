@@ -58,6 +58,16 @@ export interface INativeReverbStatus {
     dspInstalled: boolean;
     /** 软件 DSP 挂载失败原因 */
     dspError: string | null;
+    /** 诊断：configure 次数 */
+    dspConfigureCount: number;
+    /** 诊断：已处理帧数 */
+    dspFrames: number;
+    /** 诊断：采样率 */
+    dspSampleRate: number;
+    /** 诊断：声道数 */
+    dspChannels: number;
+    /** 诊断：当前湿声比例 */
+    dspWet: number;
 }
 
 export interface INativeReverb extends NativeModule {
