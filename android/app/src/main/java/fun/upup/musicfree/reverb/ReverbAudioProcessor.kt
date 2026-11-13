@@ -135,6 +135,7 @@ class ReverbAudioProcessor : AudioProcessor {
         val size = inputBuffer.remaining()
         if (size == 0) return
 
+        pendingEos = false
         val out = if (outputBuffer.capacity() < size) {
             ByteBuffer.allocateDirect(size).order(ByteOrder.nativeOrder())
         } else {
@@ -298,8 +299,23 @@ class ReverbAudioProcessor : AudioProcessor {
         return v.coerceIn(-32768, 32767).toShort()
     }
 
-    override fun queueEndOfStream() { pendingEos = true }
-    override fun getOutput(): ByteBuffer = outputBuffer
+    override fun queueEndOfStream() {
+        pendingEos = true
+    }
+
+    /**
+     * 注意：DefaultAudioSink 会把 getOutput() 反复取到「消费完」为止，直到 isEnded() 为 true
+     * 才会认为流结束并让 ExoPlayer 前进到下一首 / 触发单曲循环。
+     * 这里必须在 EOS 且当前输出已被消费完时返回 EMPTY_BUFFER，否则播放器会卡在结尾
+     * （表现为播完当前歌就停住、循环模式失效）。
+     */
+    override fun getOutput(): ByteBuffer {
+        if (pendingEos && outputBuffer.remaining() == 0) {
+            outputBuffer = AudioProcessor.EMPTY_BUFFER
+        }
+        return outputBuffer
+    }
+
     override fun isEnded(): Boolean = pendingEos && outputBuffer === AudioProcessor.EMPTY_BUFFER
 
     override fun flush() {

@@ -13,12 +13,7 @@ import MusicSheet from "@/core/musicSheet";
 import PluginManager from "@/core/pluginManager";
 import Theme from "@/core/theme";
 import TrackPlayer from "@/core/trackPlayer";
-import {
-    forceReattachReverb,
-    prepareDsp,
-    reapplyReverb,
-    restoreReverb,
-} from "@/core/reverb";
+import { prepareDsp, reapplyReverb, restoreReverb } from "@/core/reverb";
 import NativeUtils from "@/native/utils";
 import { checkAndCreateDir } from "@/utils/fileUtils";
 import { errorLog, trace } from "@/utils/log";
@@ -206,13 +201,11 @@ export async function initTrackPlayer(logger?: IPerfLogger) {
     prepareDsp().catch(() => {});
     // 恢复混响设置：原生侧要等播放器创建后才能挂上 AudioEffect
     restoreReverb().catch(() => {});
-    // 切歌时重新确认一次（audioSessionId 可能在开始播放后才生成）
+    // 切歌时只重新下发一次参数。
+    // 注意：这里不能重挂 sink——重挂会 pause/seek，导致单曲循环、列表循环、随机循环
+    // 在歌曲结束时被打断（表现为播完当前歌就暂停）。
     RNTrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, () => {
         reapplyReverb();
-        // 真正开始播放后再强制重挂一次：部分机型只有在 AudioTrack 已经存在时才会吃效果
-        setTimeout(() => {
-            forceReattachReverb();
-        }, 1500);
     });
 
     await lyricManager.setup();
