@@ -153,12 +153,14 @@ class ReverbAudioProcessor : AudioProcessor {
                 wetOut = dcY1
 
                 wetCurrent += (targetWet - wetCurrent) * 0.0008f
-                var wetSig = wetOut * wetCurrent * 0.45f
+                // 湿声增益：实测 Freeverb 输出约为输入的 0.37，这里乘 1.2 让满强度时
+                // 湿声大约等于干声的 45%（-7dB），听感明显
+                var wetSig = wetOut * wetCurrent * 1.2f
                 if (!wetSig.isFinite()) {
                     wetSig = 0f
                 }
                 // 只对湿声饱和，干声永远不受影响
-                wetSig /= (1f + abs(wetSig) * 2f)
+                wetSig /= (1f + abs(wetSig) * 1.0f)
 
                 val sumL = knee(left + wetSig)
                 val sumR = knee(right + wetSig)
